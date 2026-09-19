@@ -125,11 +125,29 @@ export default function Home() {
 
       setAnswer(data.answer);
       setStatus("Ready. Hold the button and ask your question.");
-      speak(data.answer);
+
+      if (data.audioBase64) {
+        playAudio(data.audioBase64);
+      } else {
+        speak(data.answer);
+      }
     } catch (err) {
       console.error(err);
       setStatus("Network error reaching the server.");
       speak("Sorry, I could not reach the server.");
+    }
+  }
+
+  function playAudio(base64) {
+    try {
+      const audio = new Audio(`data:audio/mpeg;base64,${base64}`);
+      audio.play().catch((err) => {
+        console.error("Audio playback failed, falling back to TTS:", err);
+        speak(answer);
+      });
+    } catch (err) {
+      console.error("Could not play ElevenLabs audio:", err);
+      speak(answer);
     }
   }
 
