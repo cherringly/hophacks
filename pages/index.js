@@ -1,53 +1,107 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 export default function Home() {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const currentAudioRef = useRef(null);
-  const audioContextRef = useRef(null);
+  const videoRef =
+    useRef(null);
 
-  const listeningRef = useRef(false);
-  const thinkingRef = useRef(false);
-  const cameraReadyRef = useRef(false);
-  const audioUnlockedRef = useRef(false);
+  const canvasRef =
+    useRef(null);
 
-  const speechCacheRef = useRef(new Map());
+  const recognitionRef =
+    useRef(null);
 
-  const [cameraReady, setCameraReady] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [thinking, setThinking] = useState(false);
+  const currentAudioRef =
+    useRef(null);
 
-  const [status, setStatus] = useState("Starting camera");
-  const [transcript, setTranscript] = useState("");
-  const [answer, setAnswer] = useState("");
+  const audioContextRef =
+    useRef(null);
 
-  const [speechSupported, setSpeechSupported] = useState(true);
-  const [manualText, setManualText] = useState("");
-  const [lastAudioBase64, setLastAudioBase64] = useState(null);
+  const listeningRef =
+    useRef(false);
 
-  // ============================================================
-  // KEEP REFS SYNCHRONIZED
-  // ============================================================
+  const thinkingRef =
+    useRef(false);
+
+  const cameraReadyRef =
+    useRef(false);
+
+  const audioUnlockedRef =
+    useRef(false);
+
+  const speechCacheRef =
+    useRef(new Map());
+
+  const [
+    cameraReady,
+    setCameraReady,
+  ] = useState(false);
+
+  const [
+    listening,
+    setListening,
+  ] = useState(false);
+
+  const [
+    thinking,
+    setThinking,
+  ] = useState(false);
+
+  const [
+    status,
+    setStatus,
+  ] = useState(
+    "Starting camera"
+  );
+
+  const [
+    transcript,
+    setTranscript,
+  ] = useState("");
+
+  const [
+    answer,
+    setAnswer,
+  ] = useState("");
+
+  const [
+    speechSupported,
+    setSpeechSupported,
+  ] = useState(true);
+
+  const [
+    manualText,
+    setManualText,
+  ] = useState("");
+
+  const [
+    lastAudioBase64,
+    setLastAudioBase64,
+  ] = useState(null);
 
   useEffect(() => {
-    listeningRef.current = listening;
+    listeningRef.current =
+      listening;
   }, [listening]);
 
   useEffect(() => {
-    thinkingRef.current = thinking;
+    thinkingRef.current =
+      thinking;
   }, [thinking]);
 
   useEffect(() => {
-    cameraReadyRef.current = cameraReady;
+    cameraReadyRef.current =
+      cameraReady;
   }, [cameraReady]);
 
-  // ============================================================
-  // AUDIO ENGINE
-  // ============================================================
-
   async function getAudioContext() {
-    if (typeof window === "undefined") {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
       return null;
     }
 
@@ -59,7 +113,9 @@ export default function Home() {
       return null;
     }
 
-    if (!audioContextRef.current) {
+    if (
+      !audioContextRef.current
+    ) {
       audioContextRef.current =
         new AudioContext();
     }
@@ -67,7 +123,10 @@ export default function Home() {
     const context =
       audioContextRef.current;
 
-    if (context.state === "suspended") {
+    if (
+      context.state ===
+      "suspended"
+    ) {
       try {
         await context.resume();
       } catch (error) {
@@ -99,12 +158,16 @@ export default function Home() {
       const gain =
         context.createGain();
 
-      oscillator.connect(gain);
+      oscillator.connect(
+        gain
+      );
+
       gain.connect(
         context.destination
       );
 
-      oscillator.type = "sine";
+      oscillator.type =
+        "sine";
 
       oscillator.frequency.setValueAtTime(
         frequency,
@@ -112,7 +175,7 @@ export default function Home() {
       );
 
       gain.gain.setValueAtTime(
-        0.4,
+        0.35,
         context.currentTime
       );
 
@@ -138,57 +201,80 @@ export default function Home() {
     }
   }
 
-  // ============================================================
-  // AUDIO CUES
-  // ============================================================
-
   function listeningCue() {
-    playTone(1050, 190);
+    playTone(
+      1050,
+      150
+    );
   }
 
   function submittedCue() {
-    playTone(520, 190);
+    playTone(
+      520,
+      130
+    );
   }
 
   function successCue() {
-    playTone(650, 120);
+    playTone(
+      650,
+      90
+    );
 
     setTimeout(() => {
-      playTone(1100, 190);
-    }, 150);
+      playTone(
+        1100,
+        120
+      );
+    }, 105);
   }
 
   function failureCue() {
-    playTone(260, 180);
+    playTone(
+      260,
+      150
+    );
 
     setTimeout(() => {
-      playTone(260, 180);
-    }, 230);
+      playTone(
+        260,
+        150
+      );
+    }, 190);
 
     setTimeout(() => {
-      playTone(260, 260);
-    }, 460);
+      playTone(
+        260,
+        210
+      );
+    }, 380);
 
     vibrate([
-      150,
-      80,
-      150,
-      80,
-      250,
+      120,
+      70,
+      120,
+      70,
+      200,
     ]);
   }
 
   function errorCue() {
-    playTone(500, 160);
+    playTone(
+      500,
+      130
+    );
 
     setTimeout(() => {
-      playTone(300, 260);
-    }, 190);
+      playTone(
+        300,
+        210
+      );
+    }, 150);
 
     vibrate([
-      200,
-      100,
-      300,
+      180,
+      80,
+      250,
     ]);
   }
 
@@ -199,16 +285,16 @@ export default function Home() {
       typeof navigator.vibrate ===
         "function"
     ) {
-      navigator.vibrate(pattern);
+      navigator.vibrate(
+        pattern
+      );
     }
   }
 
-  // ============================================================
-  // STOP CURRENT AUDIO
-  // ============================================================
-
   function stopCurrentAudio() {
-    if (currentAudioRef.current) {
+    if (
+      currentAudioRef.current
+    ) {
       try {
         currentAudioRef.current.pause();
 
@@ -229,11 +315,9 @@ export default function Home() {
     }
   }
 
-  // ============================================================
-  // EMERGENCY BROWSER VOICE FALLBACK
-  // ============================================================
-
-  function browserSpeak(text) {
+  function browserSpeak(
+    text
+  ) {
     if (
       !text ||
       typeof window ===
@@ -250,18 +334,17 @@ export default function Home() {
         text
       );
 
-    utterance.rate = 1.03;
+    utterance.rate =
+      1.05;
+
     utterance.pitch = 1;
+
     utterance.volume = 1;
 
     window.speechSynthesis.speak(
       utterance
     );
   }
-
-  // ============================================================
-  // PLAY ELEVENLABS AUDIO
-  // ============================================================
 
   function playElevenLabsAudio(
     audioBase64,
@@ -286,35 +369,39 @@ export default function Home() {
       currentAudioRef.current =
         audio;
 
-      audio.onended = () => {
-        currentAudioRef.current =
-          null;
-      };
+      audio.onended =
+        () => {
+          currentAudioRef.current =
+            null;
+        };
 
-      audio.onerror = () => {
-        currentAudioRef.current =
-          null;
-
-        browserSpeak(
-          fallbackText
-        );
-      };
-
-      audio
-        .play()
-        .catch((error) => {
-          console.error(
-            "ElevenLabs playback failed:",
-            error
-          );
-
+      audio.onerror =
+        () => {
           currentAudioRef.current =
             null;
 
           browserSpeak(
             fallbackText
           );
-        });
+        };
+
+      audio
+        .play()
+        .catch(
+          (error) => {
+            console.error(
+              "ElevenLabs playback failed:",
+              error
+            );
+
+            currentAudioRef.current =
+              null;
+
+            browserSpeak(
+              fallbackText
+            );
+          }
+        );
     } catch (error) {
       console.error(
         "Audio playback error:",
@@ -327,11 +414,9 @@ export default function Home() {
     }
   }
 
-  // ============================================================
-  // ELEVENLABS SPEECH FOR APP MESSAGES
-  // ============================================================
-
-  async function speak(text) {
+  async function speak(
+    text
+  ) {
     if (!text) {
       return;
     }
@@ -380,7 +465,7 @@ export default function Home() {
       ) {
         throw new Error(
           data.error ||
-            "ElevenLabs speech failed"
+            "Speech failed"
         );
       }
 
@@ -403,39 +488,25 @@ export default function Home() {
     }
   }
 
-  // ============================================================
-  // SPOKEN WELCOME
-  // ============================================================
-
   function speakWelcome() {
     speak(
-      "Welcome to What's This Photo. " +
-        "Hold anywhere on the screen, or hold the space bar, and ask a question. " +
-        "Release when you're finished speaking. " +
-        "Your answer will be spoken automatically. " +
-        "You can also say describe scene, repeat, or help."
-    );
-  }
-
-  // ============================================================
-  // SPOKEN HELP
-  // ============================================================
-
-  function playHelp() {
-    speak(
-      "What's This Photo helps you understand what's around you. " +
-        "Hold anywhere on the screen, or hold the space bar, while you speak. " +
+      "What's This Photo. " +
+        "Hold anywhere and ask what you want to know. " +
         "Release when you're finished. " +
-        "Ask any question about what the camera sees. " +
-        "Say describe scene for a description of your surroundings. " +
-        "Say repeat to hear the previous answer. " +
-        "Say help to hear these instructions again."
+        "You can also say describe scene, repeat, or repeat instructions."
     );
   }
 
-  // ============================================================
-  // CAMERA
-  // ============================================================
+  function playInstructions() {
+    speak(
+      "Hold anywhere on the screen, or hold the space bar, while you ask a question. " +
+        "Release when you're finished speaking. " +
+        "Ask naturally about anything the camera can see. " +
+        "Say describe scene for an overview of your surroundings. " +
+        "Say repeat to hear the last answer again. " +
+        "Say repeat instructions to hear these instructions again."
+    );
+  }
 
   useEffect(() => {
     let stream;
@@ -450,6 +521,16 @@ export default function Home() {
                   ideal:
                     "environment",
                 },
+
+                width: {
+                  ideal:
+                    1280,
+                },
+
+                height: {
+                  ideal:
+                    720,
+                },
               },
 
               audio: false,
@@ -463,12 +544,16 @@ export default function Home() {
             stream;
         }
 
-        setCameraReady(true);
+        setCameraReady(
+          true
+        );
 
         cameraReadyRef.current =
           true;
 
-        setStatus("Ready");
+        setStatus(
+          "Ready"
+        );
 
         setTimeout(() => {
           if (
@@ -476,14 +561,16 @@ export default function Home() {
           ) {
             speakWelcome();
           }
-        }, 700);
+        }, 500);
       } catch (error) {
         console.error(
           "Camera error:",
           error
         );
 
-        setCameraReady(false);
+        setCameraReady(
+          false
+        );
 
         cameraReadyRef.current =
           false;
@@ -507,10 +594,6 @@ export default function Home() {
       }
     };
   }, []);
-
-  // ============================================================
-  // CAPTURE CAMERA IMAGE
-  // ============================================================
 
   function capturePhotoBase64() {
     const video =
@@ -539,7 +622,8 @@ export default function Home() {
       return null;
     }
 
-    const maxDimension = 1280;
+    const maxDimension =
+      1100;
 
     let width =
       originalWidth;
@@ -598,7 +682,7 @@ export default function Home() {
     const dataUrl =
       canvas.toDataURL(
         "image/jpeg",
-        0.68
+        0.66
       );
 
     return dataUrl.split(
@@ -606,17 +690,13 @@ export default function Home() {
     )[1];
   }
 
-  // ============================================================
-  // AI REQUEST
-  // ============================================================
-
   async function askAboutImage(
     question,
     displayQuestion =
-      question
+      question,
+    mode = "question"
   ) {
     if (
-      !question ||
       thinkingRef.current
     ) {
       return;
@@ -634,9 +714,9 @@ export default function Home() {
 
       setTimeout(() => {
         speak(
-          "I couldn't capture an image. Please hold and try again."
+          "I couldn't capture an image. Try again."
         );
-      }, 850);
+      }, 650);
 
       return;
     }
@@ -650,9 +730,14 @@ export default function Home() {
       displayQuestion
     );
 
-    setStatus("Looking");
+    setStatus(
+      "Looking"
+    );
 
     try {
+      const startedAt =
+        performance.now();
+
       const response =
         await fetch(
           "/api/ask",
@@ -668,12 +753,30 @@ export default function Home() {
               JSON.stringify({
                 question,
                 imageBase64,
+                mode,
               }),
           }
         );
 
       const data =
         await response.json();
+
+      const totalTime =
+        Math.round(
+          performance.now() -
+            startedAt
+        );
+
+      console.log(
+        "[PERFORMANCE]",
+        {
+          totalMs:
+            totalTime,
+
+          serverTiming:
+            data.timing,
+        }
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -695,14 +798,16 @@ export default function Home() {
           null
       );
 
-      setStatus("Ready");
+      setStatus(
+        "Ready"
+      );
 
       successCue();
 
       vibrate([
-        60,
-        40,
-        100,
+        45,
+        30,
+        70,
       ]);
 
       setTimeout(() => {
@@ -718,7 +823,7 @@ export default function Home() {
             responseText
           );
         }
-      }, 380);
+      }, 220);
     } catch (error) {
       console.error(
         "Ask error:",
@@ -733,9 +838,9 @@ export default function Home() {
 
       setTimeout(() => {
         speak(
-          "Sorry, something went wrong. Please try again."
+          "Something went wrong. Try again."
         );
-      }, 600);
+      }, 450);
     } finally {
       thinkingRef.current =
         false;
@@ -743,10 +848,6 @@ export default function Home() {
       setThinking(false);
     }
   }
-
-  // ============================================================
-  // DESCRIBE SCENE
-  // ============================================================
 
   function describeScene() {
     if (
@@ -758,48 +859,12 @@ export default function Home() {
 
     stopCurrentAudio();
 
-    const accessibilityPrompt = `
-Describe what the camera currently shows for a blind or low-vision user.
-
-The response will be heard rather than read.
-
-Be concise, practical, and conversational.
-
-Put the most useful information first.
-
-Prioritize:
-1. The overall scene.
-2. Important objects directly ahead.
-3. Visible obstacles or changes in level.
-4. Doors, entrances, stairs, pathways, openings, and furniture.
-5. People and their approximate positions.
-6. Important nearby objects.
-7. Clearly readable signs, labels, numbers, or text.
-
-Use simple directional language such as:
-"directly ahead,"
-"slightly to your left,"
-"slightly to your right,"
-or clock positions when useful.
-
-Avoid unnecessary decorative details.
-
-Do not claim an area is definitely safe based on a single camera image.
-
-Describe what is actually visible.
-
-If something important is uncertain or outside the camera view, say so briefly.
-`.trim();
-
     askAboutImage(
-      accessibilityPrompt,
-      "Describe what's around me."
+      "Describe the scene.",
+      "Describe what's around me.",
+      "scene"
     );
   }
-
-  // ============================================================
-  // REPEAT ANSWER
-  // ============================================================
 
   function repeatAnswer() {
     if (!answer) {
@@ -807,9 +872,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
       setTimeout(() => {
         speak(
-          "There is no previous answer yet."
+          "There isn't a previous answer yet."
         );
-      }, 800);
+      }, 600);
 
       return;
     }
@@ -826,9 +891,21 @@ If something important is uncertain or outside the camera view, say so briefly.
     }
   }
 
-  // ============================================================
-  // VOICE COMMAND ROUTER
-  // ============================================================
+  function normalizeCommand(
+    value
+  ) {
+    return value
+      .toLowerCase()
+      .replace(
+        /[.,!?']/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  }
 
   function handleSpokenInput(
     rawQuestion
@@ -845,21 +922,17 @@ If something important is uncertain or outside the camera view, say so briefly.
 
       setTimeout(() => {
         speak(
-          "I didn't hear anything. Hold and speak again."
+          "I didn't hear anything. Try again."
         );
-      }, 850);
+      }, 650);
 
       return;
     }
 
     const command =
-      question
-        .toLowerCase()
-        .replace(
-          /[.,!?]/g,
-          ""
-        )
-        .trim();
+      normalizeCommand(
+        question
+      );
 
     const describeCommands =
       [
@@ -867,11 +940,11 @@ If something important is uncertain or outside the camera view, say so briefly.
         "describe the scene",
         "describe my surroundings",
         "describe surroundings",
-        "describe what's around me",
         "describe whats around me",
-        "what's around me",
-        "whats around me",
         "what is around me",
+        "whats around me",
+        "tell me whats around me",
+        "describe around me",
       ];
 
     if (
@@ -893,6 +966,7 @@ If something important is uncertain or outside the camera view, say so briefly.
         "say that again",
         "say it again",
         "what did you say",
+        "again",
       ];
 
     if (
@@ -905,37 +979,35 @@ If something important is uncertain or outside the camera view, say so briefly.
       return;
     }
 
-    const helpCommands =
+    const instructionCommands =
       [
-        "help",
-        "help me",
-        "instructions",
-        "give me instructions",
-        "what can i say",
-        "what can i do",
+        "repeat instructions",
+        "repeat the instructions",
+        "say the instructions again",
+        "instructions again",
+        "give me the instructions",
+        "tell me the instructions",
+        "what are the instructions",
         "how do i use this",
         "how does this work",
       ];
 
     if (
-      helpCommands.includes(
+      instructionCommands.includes(
         command
       )
     ) {
-      playHelp();
+      playInstructions();
 
       return;
     }
 
     askAboutImage(
       question,
-      question
+      question,
+      "question"
     );
   }
-
-  // ============================================================
-  // SPEECH RECOGNITION
-  // ============================================================
 
   useEffect(() => {
     if (
@@ -979,7 +1051,9 @@ If something important is uncertain or outside the camera view, say so briefly.
         listeningRef.current =
           true;
 
-        setListening(true);
+        setListening(
+          true
+        );
 
         setStatus(
           "Listening"
@@ -989,12 +1063,16 @@ If something important is uncertain or outside the camera view, say so briefly.
     recognition.onresult =
       (event) => {
         const question =
-          event.results?.[0]?.[0]?.transcript?.trim();
+          event
+            .results?.[0]?.[0]
+            ?.transcript?.trim();
 
         listeningRef.current =
           false;
 
-        setListening(false);
+        setListening(
+          false
+        );
 
         handleSpokenInput(
           question
@@ -1011,7 +1089,9 @@ If something important is uncertain or outside the camera view, say so briefly.
         listeningRef.current =
           false;
 
-        setListening(false);
+        setListening(
+          false
+        );
 
         if (
           event.error ===
@@ -1032,9 +1112,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
           setTimeout(() => {
             speak(
-              "I didn't hear anything. Hold and speak again."
+              "I didn't hear anything. Try again."
             );
-          }, 850);
+          }, 600);
 
           return;
         }
@@ -1051,9 +1131,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
           setTimeout(() => {
             speak(
-              "Microphone access is unavailable. Please allow microphone access."
+              "Microphone access is off. Please allow microphone access."
             );
-          }, 600);
+          }, 450);
 
           return;
         }
@@ -1070,9 +1150,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
           setTimeout(() => {
             speak(
-              "I can't access the microphone. Please check your microphone and try again."
+              "I can't access the microphone."
             );
-          }, 600);
+          }, 450);
 
           return;
         }
@@ -1085,9 +1165,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
         setTimeout(() => {
           speak(
-            "I couldn't hear your question. Please try again."
+            "I couldn't hear your question. Try again."
           );
-        }, 600);
+        }, 450);
       };
 
     recognition.onend =
@@ -1095,7 +1175,9 @@ If something important is uncertain or outside the camera view, say so briefly.
         listeningRef.current =
           false;
 
-        setListening(false);
+        setListening(
+          false
+        );
       };
 
     recognitionRef.current =
@@ -1110,10 +1192,6 @@ If something important is uncertain or outside the camera view, say so briefly.
     answer,
     lastAudioBase64,
   ]);
-
-  // ============================================================
-  // START LISTENING
-  // ============================================================
 
   async function startListening() {
     await getAudioContext();
@@ -1136,9 +1214,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
       setTimeout(() => {
         speak(
-          "The camera is still starting. Please try again in a moment."
+          "The camera is still starting."
         );
-      }, 600);
+      }, 400);
 
       return;
     }
@@ -1150,9 +1228,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
       setTimeout(() => {
         speak(
-          "Voice recognition is unavailable in this browser."
+          "Voice recognition isn't available in this browser."
         );
-      }, 600);
+      }, 400);
 
       return;
     }
@@ -1168,7 +1246,9 @@ If something important is uncertain or outside the camera view, say so briefly.
     listeningRef.current =
       true;
 
-    setListening(true);
+    setListening(
+      true
+    );
 
     setTranscript("");
 
@@ -1178,7 +1258,7 @@ If something important is uncertain or outside the camera view, say so briefly.
 
     listeningCue();
 
-    vibrate(60);
+    vibrate(45);
 
     try {
       recognitionRef.current.start();
@@ -1191,21 +1271,19 @@ If something important is uncertain or outside the camera view, say so briefly.
       listeningRef.current =
         false;
 
-      setListening(false);
+      setListening(
+        false
+      );
 
       errorCue();
 
       setTimeout(() => {
         speak(
-          "I couldn't start listening. Please try again."
+          "I couldn't start listening. Try again."
         );
-      }, 600);
+      }, 400);
     }
   }
-
-  // ============================================================
-  // STOP LISTENING
-  // ============================================================
 
   function stopListening() {
     if (
@@ -1222,9 +1300,9 @@ If something important is uncertain or outside the camera view, say so briefly.
     submittedCue();
 
     vibrate([
-      40,
-      40,
-      40,
+      35,
+      25,
+      35,
     ]);
 
     try {
@@ -1238,21 +1316,19 @@ If something important is uncertain or outside the camera view, say so briefly.
       listeningRef.current =
         false;
 
-      setListening(false);
+      setListening(
+        false
+      );
 
       errorCue();
 
       setTimeout(() => {
         speak(
-          "Something went wrong. Please hold and speak again."
+          "Something went wrong. Try again."
         );
-      }, 600);
+      }, 400);
     }
   }
-
-  // ============================================================
-  // KEYBOARD / PI BUTTON SIMULATOR
-  // ============================================================
 
   useEffect(() => {
     function keyDown(
@@ -1321,10 +1397,6 @@ If something important is uncertain or outside the camera view, say so briefly.
     };
   });
 
-  // ============================================================
-  // MANUAL FALLBACK
-  // ============================================================
-
   function handleManualSubmit(
     event
   ) {
@@ -1346,10 +1418,6 @@ If something important is uncertain or outside the camera view, say so briefly.
       question
     );
   }
-
-  // ============================================================
-  // FULL SCREEN HOLD
-  // ============================================================
 
   function isInteractiveElement(
     target
@@ -1393,10 +1461,6 @@ If something important is uncertain or outside the camera view, say so briefly.
     stopListening();
   }
 
-  // ============================================================
-  // VISUAL STATUS
-  // ============================================================
-
   const statusTitle =
     listening
       ? "Listening"
@@ -1410,18 +1474,16 @@ If something important is uncertain or outside the camera view, say so briefly.
     listening
       ? "Speak now. Release when finished."
       : thinking
-      ? "Analyzing what the camera sees."
+      ? "Looking at the image."
       : cameraReady
-      ? "Hold anywhere and ask what's around you."
+      ? "Hold anywhere and ask a question."
       : "Getting the camera ready.";
-
-  // ============================================================
-  // PAGE
-  // ============================================================
 
   return (
     <main
-      style={styles.page}
+      style={
+        styles.page
+      }
       onPointerDown={
         handleScreenPointerDown
       }
@@ -1437,14 +1499,17 @@ If something important is uncertain or outside the camera view, say so briefly.
         autoPlay
         muted
         playsInline
-        style={styles.video}
+        style={
+          styles.video
+        }
         aria-hidden="true"
       />
 
       <canvas
         ref={canvasRef}
         style={{
-          display: "none",
+          display:
+            "none",
         }}
         aria-hidden="true"
       />
@@ -1485,7 +1550,6 @@ If something important is uncertain or outside the camera view, say so briefly.
           style={
             styles.demoBadge
           }
-          aria-label="Website demo mode"
         >
           WEB DEMO
         </div>
@@ -1497,7 +1561,6 @@ If something important is uncertain or outside the camera view, say so briefly.
         }
         role="status"
         aria-live="polite"
-        aria-atomic="true"
       >
         <div
           style={{
@@ -1590,8 +1653,8 @@ If something important is uncertain or outside the camera view, say so briefly.
             }}
             aria-label={
               listening
-                ? "Release to submit your spoken question"
-                : "Hold to ask a question about what the camera sees"
+                ? "Release to submit your question"
+                : "Hold to ask about what the camera sees"
             }
             onPointerDown={(
               event
@@ -1646,8 +1709,7 @@ If something important is uncertain or outside the camera view, say so briefly.
                       styles.buttonHelp
                     }
                   >
-                    Or hold
-                    Space
+                    Or hold Space
                   </span>
                 )}
             </span>
@@ -1729,7 +1791,7 @@ If something important is uncertain or outside the camera view, say so briefly.
                 ? styles.disabled
                 : {}),
             }}
-            aria-label="Describe the scene. You can also hold and say describe scene."
+            aria-label="Describe scene"
           >
             <span
               style={
@@ -1746,8 +1808,7 @@ If something important is uncertain or outside the camera view, say so briefly.
                   styles.secondaryTitle
                 }
               >
-                Describe
-                Scene
+                Describe Scene
               </strong>
 
               <span
@@ -1778,7 +1839,7 @@ If something important is uncertain or outside the camera view, say so briefly.
                 ? styles.disabled
                 : {}),
             }}
-            aria-label="Repeat the last answer. You can also hold and say repeat."
+            aria-label="Repeat answer"
           >
             <span
               style={
@@ -1812,12 +1873,12 @@ If something important is uncertain or outside the camera view, say so briefly.
         <button
           type="button"
           onClick={
-            playHelp
+            playInstructions
           }
           style={
             styles.helpButton
           }
-          aria-label="Hear instructions. You can also hold and say help."
+          aria-label="Hear instructions"
         >
           🔊 Hear Instructions
         </button>
@@ -1827,27 +1888,27 @@ If something important is uncertain or outside the camera view, say so briefly.
             styles.voiceHint
           }
         >
-          Say “describe scene” •
-          “repeat” • “help”
+          “describe scene” •
+          “repeat” •
+          “repeat instructions”
         </p>
       </section>
     </main>
   );
 }
 
-// ============================================================
-// STYLES
-// ============================================================
-
 const styles = {
   page: {
-    position: "relative",
+    position:
+      "relative",
 
     width: "100vw",
     height: "100dvh",
-    minHeight: "100vh",
+    minHeight:
+      "100vh",
 
-    overflow: "hidden",
+    overflow:
+      "hidden",
 
     backgroundColor:
       "#000",
@@ -1855,27 +1916,32 @@ const styles = {
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
 
-    cursor: "pointer",
+    cursor:
+      "pointer",
 
-    touchAction: "none",
+    touchAction:
+      "none",
   },
 
   video: {
-    position: "absolute",
+    position:
+      "absolute",
 
     inset: 0,
 
     width: "100%",
     height: "100%",
 
-    objectFit: "cover",
+    objectFit:
+      "cover",
 
     pointerEvents:
       "none",
   },
 
   gradient: {
-    position: "absolute",
+    position:
+      "absolute",
 
     inset: 0,
 
@@ -1887,7 +1953,8 @@ const styles = {
   },
 
   header: {
-    position: "absolute",
+    position:
+      "absolute",
 
     zIndex: 10,
 
@@ -1895,7 +1962,8 @@ const styles = {
     left: 0,
     right: 0,
 
-    display: "flex",
+    display:
+      "flex",
 
     alignItems:
       "flex-start",
@@ -1920,7 +1988,8 @@ const styles = {
     fontSize:
       "clamp(29px, 7vw, 40px)",
 
-    fontWeight: 900,
+    fontWeight:
+      900,
 
     lineHeight: 1,
 
@@ -1932,14 +2001,17 @@ const styles = {
   },
 
   tagline: {
-    margin: "8px 0 0",
+    margin:
+      "8px 0 0",
 
     color:
       "rgba(255,255,255,.9)",
 
-    fontSize: "15px",
+    fontSize:
+      "15px",
 
-    fontWeight: 700,
+    fontWeight:
+      700,
   },
 
   demoBadge: {
@@ -1959,16 +2031,19 @@ const styles = {
 
     color: "#fff",
 
-    fontSize: "10px",
+    fontSize:
+      "10px",
 
-    fontWeight: 900,
+    fontWeight:
+      900,
 
     letterSpacing:
       "1px",
   },
 
   centerStatus: {
-    position: "absolute",
+    position:
+      "absolute",
 
     zIndex: 5,
 
@@ -1982,7 +2057,8 @@ const styles = {
     transform:
       "translateX(-50%)",
 
-    display: "flex",
+    display:
+      "flex",
 
     flexDirection:
       "column",
@@ -1990,7 +2066,8 @@ const styles = {
     alignItems:
       "center",
 
-    textAlign: "center",
+    textAlign:
+      "center",
 
     pointerEvents:
       "none",
@@ -2001,7 +2078,8 @@ const styles = {
 
     height: "72px",
 
-    display: "flex",
+    display:
+      "flex",
 
     alignItems:
       "center",
@@ -2020,9 +2098,11 @@ const styles = {
 
     color: "#fff",
 
-    fontSize: "28px",
+    fontSize:
+      "28px",
 
-    fontWeight: 900,
+    fontWeight:
+      900,
 
     boxShadow:
       "0 8px 30px rgba(0,0,0,.4)",
@@ -2034,7 +2114,8 @@ const styles = {
   },
 
   thinkingCircle: {
-    fontSize: "16px",
+    fontSize:
+      "16px",
 
     letterSpacing:
       "3px",
@@ -2049,7 +2130,8 @@ const styles = {
     fontSize:
       "clamp(29px, 7vw, 41px)",
 
-    fontWeight: 900,
+    fontWeight:
+      900,
 
     letterSpacing:
       "-.8px",
@@ -2068,18 +2150,22 @@ const styles = {
     color:
       "rgba(255,255,255,.95)",
 
-    fontSize: "16px",
+    fontSize:
+      "16px",
 
-    fontWeight: 700,
+    fontWeight:
+      700,
 
-    lineHeight: 1.4,
+    lineHeight:
+      1.4,
 
     textShadow:
       "0 2px 14px rgba(0,0,0,.8)",
   },
 
   controls: {
-    position: "absolute",
+    position:
+      "absolute",
 
     zIndex: 20,
 
@@ -2087,7 +2173,8 @@ const styles = {
     right: 0,
     bottom: 0,
 
-    display: "flex",
+    display:
+      "flex",
 
     flexDirection:
       "column",
@@ -2139,11 +2226,14 @@ const styles = {
     color:
       "rgba(255,255,255,.72)",
 
-    fontSize: "13px",
+    fontSize:
+      "13px",
 
-    fontWeight: 700,
+    fontWeight:
+      700,
 
-    lineHeight: 1.35,
+    lineHeight:
+      1.35,
   },
 
   answerText: {
@@ -2154,9 +2244,11 @@ const styles = {
     fontSize:
       "clamp(20px, 5.4vw, 27px)",
 
-    fontWeight: 850,
+    fontWeight:
+      850,
 
-    lineHeight: 1.28,
+    lineHeight:
+      1.28,
 
     letterSpacing:
       "-.2px",
@@ -2171,7 +2263,8 @@ const styles = {
     minHeight:
       "94px",
 
-    display: "flex",
+    display:
+      "flex",
 
     alignItems:
       "center",
@@ -2198,7 +2291,8 @@ const styles = {
 
     color: "#000",
 
-    cursor: "pointer",
+    cursor:
+      "pointer",
 
     userSelect:
       "none",
@@ -2230,7 +2324,8 @@ const styles = {
 
     flexShrink: 0,
 
-    display: "flex",
+    display:
+      "flex",
 
     alignItems:
       "center",
@@ -2246,33 +2341,44 @@ const styles = {
 
     color: "#fff",
 
-    fontSize: "24px",
+    fontSize:
+      "24px",
   },
 
   buttonTitle: {
-    display: "block",
+    display:
+      "block",
 
-    fontSize: "22px",
+    fontSize:
+      "22px",
 
-    fontWeight: 900,
+    fontWeight:
+      900,
 
-    lineHeight: 1.1,
+    lineHeight:
+      1.1,
 
-    textAlign: "left",
+    textAlign:
+      "left",
   },
 
   buttonHelp: {
-    display: "block",
+    display:
+      "block",
 
-    marginTop: "5px",
+    marginTop:
+      "5px",
 
-    fontSize: "13px",
+    fontSize:
+      "13px",
 
-    fontWeight: 650,
+    fontWeight:
+      650,
 
     opacity: 0.65,
 
-    textAlign: "left",
+    textAlign:
+      "left",
   },
 
   quickActions: {
@@ -2281,7 +2387,8 @@ const styles = {
     maxWidth:
       "560px",
 
-    display: "grid",
+    display:
+      "grid",
 
     gridTemplateColumns:
       "repeat(2, minmax(0, 1fr))",
@@ -2293,7 +2400,8 @@ const styles = {
     minHeight:
       "68px",
 
-    display: "flex",
+    display:
+      "flex",
 
     alignItems:
       "center",
@@ -2317,38 +2425,49 @@ const styles = {
 
     color: "#fff",
 
-    cursor: "pointer",
+    cursor:
+      "pointer",
 
-    textAlign: "left",
+    textAlign:
+      "left",
   },
 
   secondaryIcon: {
     flexShrink: 0,
 
-    fontSize: "23px",
+    fontSize:
+      "23px",
   },
 
   secondaryTitle: {
-    display: "block",
+    display:
+      "block",
 
-    fontSize: "14px",
+    fontSize:
+      "14px",
 
-    fontWeight: 850,
+    fontWeight:
+      850,
   },
 
   secondaryHelp: {
-    display: "block",
+    display:
+      "block",
 
-    marginTop: "3px",
+    marginTop:
+      "3px",
 
     color:
       "rgba(255,255,255,.72)",
 
-    fontSize: "10px",
+    fontSize:
+      "10px",
 
-    fontWeight: 650,
+    fontWeight:
+      650,
 
-    lineHeight: 1.2,
+    lineHeight:
+      1.2,
   },
 
   helpButton: {
@@ -2369,11 +2488,14 @@ const styles = {
 
     color: "#fff",
 
-    fontSize: "13px",
+    fontSize:
+      "13px",
 
-    fontWeight: 800,
+    fontWeight:
+      800,
 
-    cursor: "pointer",
+    cursor:
+      "pointer",
   },
 
   voiceHint: {
@@ -2382,20 +2504,25 @@ const styles = {
     color:
       "rgba(255,255,255,.72)",
 
-    fontSize: "11px",
+    fontSize:
+      "11px",
 
-    fontWeight: 700,
+    fontWeight:
+      700,
 
-    textAlign: "center",
+    textAlign:
+      "center",
 
     pointerEvents:
       "none",
   },
 
   disabled: {
-    opacity: 0.48,
+    opacity:
+      0.48,
 
-    cursor: "default",
+    cursor:
+      "default",
   },
 
   manualForm: {
@@ -2407,7 +2534,8 @@ const styles = {
     boxSizing:
       "border-box",
 
-    padding: "15px",
+    padding:
+      "15px",
 
     border:
       "2px solid rgba(255,255,255,.5)",
@@ -2420,20 +2548,24 @@ const styles = {
   },
 
   manualLabel: {
-    display: "block",
+    display:
+      "block",
 
     marginBottom:
       "9px",
 
     color: "#fff",
 
-    fontSize: "15px",
+    fontSize:
+      "15px",
 
-    fontWeight: 800,
+    fontWeight:
+      800,
   },
 
   manualRow: {
-    display: "flex",
+    display:
+      "flex",
 
     gap: "8px",
   },
@@ -2443,7 +2575,8 @@ const styles = {
 
     minWidth: 0,
 
-    padding: "15px",
+    padding:
+      "15px",
 
     border:
       "2px solid #fff",
@@ -2456,7 +2589,8 @@ const styles = {
 
     color: "#fff",
 
-    fontSize: "16px",
+    fontSize:
+      "16px",
   },
 
   smallButton: {
@@ -2473,8 +2607,10 @@ const styles = {
 
     color: "#000",
 
-    fontSize: "16px",
+    fontSize:
+      "16px",
 
-    fontWeight: 900,
+    fontWeight:
+      900,
   },
 };
