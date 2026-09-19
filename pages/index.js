@@ -38,9 +38,7 @@ export default function Home() {
   const [
     status,
     setStatus,
-  ] = useState(
-    "Starting camera"
-  );
+  ] = useState("Starting");
 
   const [
     transcript,
@@ -67,6 +65,10 @@ export default function Home() {
     setLastAudioBase64,
   ] = useState(null);
 
+  // ============================================================
+  // KEEP STATE REFS CURRENT
+  // ============================================================
+
   useEffect(() => {
     listeningRef.current =
       listening;
@@ -83,7 +85,7 @@ export default function Home() {
   }, [cameraReady]);
 
   // ============================================================
-  // AUDIO
+  // AUDIO CONTEXT
   // ============================================================
 
   async function getAudioContext() {
@@ -129,6 +131,10 @@ export default function Home() {
     return context;
   }
 
+  // ============================================================
+  // TONES
+  // ============================================================
+
   async function playTone(
     frequency = 700,
     duration = 120
@@ -162,7 +168,7 @@ export default function Home() {
       );
 
       gain.gain.setValueAtTime(
-        0.35,
+        0.32,
         context.currentTime
       );
 
@@ -191,7 +197,7 @@ export default function Home() {
   function listeningCue() {
     playTone(
       1050,
-      150
+      140
     );
   }
 
@@ -204,45 +210,30 @@ export default function Home() {
 
   function successCue() {
     playTone(
-      650,
-      90
+      680,
+      85
     );
 
     setTimeout(() => {
       playTone(
         1100,
-        120
+        115
       );
-    }, 105);
+    }, 100);
   }
 
-  function failureCue() {
+  function noSpeechCue() {
     playTone(
-      260,
-      150
+      420,
+      100
     );
 
     setTimeout(() => {
       playTone(
-        260,
-        150
+        420,
+        100
       );
-    }, 190);
-
-    setTimeout(() => {
-      playTone(
-        260,
-        210
-      );
-    }, 380);
-
-    vibrate([
-      120,
-      70,
-      120,
-      70,
-      200,
-    ]);
+    }, 135);
   }
 
   function errorCue() {
@@ -253,8 +244,8 @@ export default function Home() {
 
     setTimeout(() => {
       playTone(
-        300,
-        210
+        290,
+        220
       );
     }, 150);
 
@@ -277,6 +268,10 @@ export default function Home() {
       );
     }
   }
+
+  // ============================================================
+  // AUDIO PLAYBACK
+  // ============================================================
 
   function stopCurrentAudio() {
     if (
@@ -303,30 +298,43 @@ export default function Home() {
   }
 
   function browserSpeak(text) {
-    if (
-      !text ||
-      typeof window ===
-        "undefined" ||
-      !window.speechSynthesis
-    ) {
-      return;
-    }
+    return new Promise(
+      (resolve) => {
+        if (
+          !text ||
+          typeof window ===
+            "undefined" ||
+          !window.speechSynthesis
+        ) {
+          resolve();
 
-    stopCurrentAudio();
+          return;
+        }
 
-    const utterance =
-      new SpeechSynthesisUtterance(
-        text
-      );
+        stopCurrentAudio();
 
-    utterance.rate =
-      1.05;
+        const utterance =
+          new SpeechSynthesisUtterance(
+            text
+          );
 
-    utterance.pitch = 1;
-    utterance.volume = 1;
+        utterance.rate =
+          1.06;
 
-    window.speechSynthesis.speak(
-      utterance
+        utterance.pitch = 1;
+
+        utterance.volume = 1;
+
+        utterance.onend =
+          () => resolve();
+
+        utterance.onerror =
+          () => resolve();
+
+        window.speechSynthesis.speak(
+          utterance
+        );
+      }
     );
   }
 
@@ -334,66 +342,74 @@ export default function Home() {
     audioBase64,
     fallbackText
   ) {
-    if (!audioBase64) {
-      browserSpeak(
-        fallbackText
-      );
+    return new Promise(
+      (resolve) => {
+        if (!audioBase64) {
+          browserSpeak(
+            fallbackText
+          ).then(resolve);
 
-      return;
-    }
+          return;
+        }
 
-    try {
-      stopCurrentAudio();
+        try {
+          stopCurrentAudio();
 
-      const audio =
-        new Audio(
-          `data:audio/mpeg;base64,${audioBase64}`
-        );
-
-      currentAudioRef.current =
-        audio;
-
-      audio.onended = () => {
-        currentAudioRef.current =
-          null;
-      };
-
-      audio.onerror = () => {
-        currentAudioRef.current =
-          null;
-
-        browserSpeak(
-          fallbackText
-        );
-      };
-
-      audio
-        .play()
-        .catch(
-          (error) => {
-            console.error(
-              "ElevenLabs playback failed:",
-              error
+          const audio =
+            new Audio(
+              `data:audio/mpeg;base64,${audioBase64}`
             );
 
-            currentAudioRef.current =
-              null;
+          currentAudioRef.current =
+            audio;
 
-            browserSpeak(
-              fallbackText
+          audio.onended =
+            () => {
+              currentAudioRef.current =
+                null;
+
+              resolve();
+            };
+
+          audio.onerror =
+            () => {
+              currentAudioRef.current =
+                null;
+
+              browserSpeak(
+                fallbackText
+              ).then(resolve);
+            };
+
+          audio
+            .play()
+            .catch(
+              (error) => {
+                console.error(
+                  "ElevenLabs playback failed:",
+                  error
+                );
+
+                currentAudioRef.current =
+                  null;
+
+                browserSpeak(
+                  fallbackText
+                ).then(resolve);
+              }
             );
-          }
-        );
-    } catch (error) {
-      console.error(
-        "Audio playback error:",
-        error
-      );
+        } catch (error) {
+          console.error(
+            "Audio playback error:",
+            error
+          );
 
-      browserSpeak(
-        fallbackText
-      );
-    }
+          browserSpeak(
+            fallbackText
+          ).then(resolve);
+        }
+      }
+    );
   }
 
   async function speak(text) {
@@ -409,7 +425,7 @@ export default function Home() {
       );
 
     if (cachedAudio) {
-      playElevenLabsAudio(
+      await playElevenLabsAudio(
         cachedAudio,
         text
       );
@@ -454,7 +470,7 @@ export default function Home() {
         data.audioBase64
       );
 
-      playElevenLabsAudio(
+      await playElevenLabsAudio(
         data.audioBase64,
         text
       );
@@ -464,34 +480,41 @@ export default function Home() {
         error
       );
 
-      browserSpeak(text);
+      await browserSpeak(
+        text
+      );
     }
   }
 
   // ============================================================
-  // INTRO / INSTRUCTIONS
+  // INTRODUCTION
   // ============================================================
 
   function speakWelcome() {
     speak(
-      "What's This Camera. " +
-        "Press the camera button and ask a question now. " +
-        "On the website, hold anywhere to ask. " +
+      "What's This Photo. " +
+        "Hold to ask a question, or tap Take Photo for a description. " +
         "Say repeat instructions anytime."
     );
   }
 
+  // ============================================================
+  // FULL INSTRUCTIONS
+  // ============================================================
+
   function playInstructions() {
     speak(
-      "What's This Camera helps you understand what the camera sees. " +
-        "On the camera device, hold the camera button while you ask a question, then release. " +
-        "Press and release without asking a question for an automatic description. " +
-        "On the website, hold anywhere on the screen, or hold the space bar, while you ask a question, then release. " +
-        "You can also use the Take Photo button without speaking. " +
+      "What's This Photo helps describe what your camera sees. " +
+        "On this website, hold the large Ask button while speaking, then release. " +
+        "You can also hold the space bar. " +
+        "If you don't want to speak, tap Take Photo for an automatic description. " +
+        "On the physical What's This Photo camera, hold the camera button while asking a question, then release. " +
+        "Press and release the camera button without speaking for an automatic description. " +
+        "After you speak, I'll tell you what question I heard. " +
         "Say describe scene for an overview. " +
-        "Say repeat to hear the last answer again. " +
+        "Say repeat to hear the last answer. " +
         "Say repeat instructions to hear these instructions again. " +
-        "Camera answers can be wrong, so use your own judgment for safety-critical decisions."
+        "Visual answers can be wrong or incomplete, so do not rely on the camera alone for safety-critical decisions."
     );
   }
 
@@ -552,7 +575,7 @@ export default function Home() {
           ) {
             speakWelcome();
           }
-        }, 500);
+        }, 450);
       } catch (error) {
         console.error(
           "Camera error:",
@@ -692,7 +715,8 @@ export default function Home() {
   async function askAboutImage(
     question = "",
     displayQuestion = "",
-    mode = "question"
+    mode = "question",
+    feedbackPromise = null
   ) {
     if (
       thinkingRef.current
@@ -705,16 +729,16 @@ export default function Home() {
 
     if (!imageBase64) {
       setStatus(
-        "No image captured"
+        "Camera could not capture"
       );
 
-      failureCue();
+      errorCue();
 
       setTimeout(() => {
         speak(
-          "I couldn't capture an image. Try again."
+          "I couldn't capture the image. Try again."
         );
-      }, 500);
+      }, 350);
 
       return;
     }
@@ -722,7 +746,9 @@ export default function Home() {
     thinkingRef.current =
       true;
 
-    setThinking(true);
+    setThinking(
+      true
+    );
 
     setTranscript(
       displayQuestion
@@ -736,11 +762,12 @@ export default function Home() {
       const startedAt =
         performance.now();
 
-      const response =
-        await fetch(
+      const responsePromise =
+        fetch(
           "/api/ask",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               "Content-Type":
@@ -756,10 +783,13 @@ export default function Home() {
           }
         );
 
+      const response =
+        await responsePromise;
+
       const data =
         await response.json();
 
-      const totalTime =
+      const totalMs =
         Math.round(
           performance.now() -
             startedAt
@@ -768,9 +798,7 @@ export default function Home() {
       console.log(
         "[PERFORMANCE]",
         {
-          totalMs:
-            totalTime,
-
+          totalMs,
           serverTiming:
             data.timing,
         }
@@ -796,6 +824,14 @@ export default function Home() {
           null
       );
 
+      if (
+        feedbackPromise
+      ) {
+        try {
+          await feedbackPromise;
+        } catch {}
+      }
+
       setStatus(
         "Ready"
       );
@@ -808,20 +844,26 @@ export default function Home() {
         70,
       ]);
 
-      setTimeout(() => {
-        if (
-          data.audioBase64
-        ) {
-          playElevenLabsAudio(
-            data.audioBase64,
-            responseText
-          );
-        } else {
-          speak(
-            responseText
-          );
-        }
-      }, 180);
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            150
+          )
+      );
+
+      if (
+        data.audioBase64
+      ) {
+        await playElevenLabsAudio(
+          data.audioBase64,
+          responseText
+        );
+      } else {
+        await speak(
+          responseText
+        );
+      }
     } catch (error) {
       console.error(
         "Ask error:",
@@ -836,19 +878,21 @@ export default function Home() {
 
       setTimeout(() => {
         speak(
-          "Something went wrong. Try again."
+          "Something went wrong. Please try again."
         );
-      }, 400);
+      }, 350);
     } finally {
       thinkingRef.current =
         false;
 
-      setThinking(false);
+      setThinking(
+        false
+      );
     }
   }
 
   // ============================================================
-  // QUESTION CONFIRMATION
+  // RECOGNIZED QUESTION
   // ============================================================
 
   function submitRecognizedQuestion(
@@ -858,31 +902,41 @@ export default function Home() {
       question?.trim();
 
     if (!cleanQuestion) {
-      submitImageOnly();
+      submitImageOnly(
+        true
+      );
 
       return;
     }
 
     setTranscript(
-      cleanQuestion
+      `Heard: ${cleanQuestion}`
     );
 
     setStatus(
       "Question heard"
     );
 
-    speak(
-      `Heard: ${cleanQuestion}`
-    );
+    const feedbackPromise =
+      speak(
+        `Heard: ${cleanQuestion}`
+      );
 
     askAboutImage(
       cleanQuestion,
-      cleanQuestion,
-      "question"
+      `Heard: ${cleanQuestion}`,
+      "question",
+      feedbackPromise
     );
   }
 
-  function submitImageOnly() {
+  // ============================================================
+  // IMAGE ONLY
+  // ============================================================
+
+  function submitImageOnly(
+    cameFromSilence = false
+  ) {
     if (
       thinkingRef.current ||
       !cameraReadyRef.current
@@ -890,27 +944,44 @@ export default function Home() {
       return;
     }
 
+    const feedbackText =
+      cameFromSilence
+        ? "No question heard. Describing."
+        : "Photo taken. Describing.";
+
     setTranscript(
-      "No question — automatic description"
+      cameFromSilence
+        ? "No question heard"
+        : "Photo only"
     );
 
     setStatus(
       "Describing"
     );
 
-    speak(
-      "No question heard. Describing."
-    );
+    if (
+      cameFromSilence
+    ) {
+      noSpeechCue();
+    }
+
+    const feedbackPromise =
+      speak(
+        feedbackText
+      );
 
     askAboutImage(
       "",
-      "Automatic description",
-      "image-only"
+      cameFromSilence
+        ? "No question heard — automatic description"
+        : "Automatic description",
+      "image-only",
+      feedbackPromise
     );
   }
 
   // ============================================================
-  // SCENE DESCRIPTION
+  // DESCRIBE SCENE
   // ============================================================
 
   function describeScene() {
@@ -940,13 +1011,13 @@ export default function Home() {
 
   function repeatAnswer() {
     if (!answer) {
-      failureCue();
+      noSpeechCue();
 
       setTimeout(() => {
         speak(
           "There isn't a previous answer yet."
         );
-      }, 500);
+      }, 250);
 
       return;
     }
@@ -959,12 +1030,14 @@ export default function Home() {
         answer
       );
     } else {
-      speak(answer);
+      speak(
+        answer
+      );
     }
   }
 
   // ============================================================
-  // VOICE COMMANDS
+  // VOICE COMMAND ROUTING
   // ============================================================
 
   function normalizeCommand(
@@ -990,7 +1063,9 @@ export default function Home() {
       rawQuestion?.trim();
 
     if (!question) {
-      submitImageOnly();
+      submitImageOnly(
+        true
+      );
 
       return;
     }
@@ -1007,10 +1082,9 @@ export default function Home() {
         "describe my surroundings",
         "describe surroundings",
         "describe whats around me",
-        "what is around me",
         "whats around me",
+        "what is around me",
         "tell me whats around me",
-        "describe around me",
       ];
 
     if (
@@ -1049,8 +1123,9 @@ export default function Home() {
       [
         "repeat instructions",
         "repeat the instructions",
-        "say the instructions again",
+        "instructions",
         "instructions again",
+        "say the instructions again",
         "give me the instructions",
         "tell me the instructions",
         "what are the instructions",
@@ -1172,7 +1247,9 @@ export default function Home() {
           event.error ===
           "no-speech"
         ) {
-          submitImageOnly();
+          submitImageOnly(
+            true
+          );
 
           return;
         }
@@ -1191,7 +1268,7 @@ export default function Home() {
             speak(
               "Microphone access is off. You can still use Take Photo."
             );
-          }, 400);
+          }, 300);
 
           return;
         }
@@ -1210,7 +1287,7 @@ export default function Home() {
             speak(
               "I can't access the microphone. You can still use Take Photo."
             );
-          }, 400);
+          }, 300);
 
           return;
         }
@@ -1225,7 +1302,7 @@ export default function Home() {
           speak(
             "I couldn't understand the microphone input. Try again, or use Take Photo."
           );
-        }, 400);
+        }, 300);
       };
 
     recognition.onend =
@@ -1252,7 +1329,7 @@ export default function Home() {
   ]);
 
   // ============================================================
-  // START / STOP LISTENING
+  // START LISTENING
   // ============================================================
 
   async function startListening() {
@@ -1278,7 +1355,7 @@ export default function Home() {
         speak(
           "The camera is still starting."
         );
-      }, 350);
+      }, 250);
 
       return;
     }
@@ -1292,7 +1369,7 @@ export default function Home() {
         speak(
           "Voice recognition isn't available. Use Take Photo instead."
         );
-      }, 350);
+      }, 250);
 
       return;
     }
@@ -1343,9 +1420,13 @@ export default function Home() {
         speak(
           "I couldn't start listening. Try again, or use Take Photo."
         );
-      }, 350);
+      }, 250);
     }
   }
+
+  // ============================================================
+  // STOP LISTENING
+  // ============================================================
 
   function stopListening() {
     if (
@@ -1388,7 +1469,7 @@ export default function Home() {
         speak(
           "Something went wrong. Try again."
         );
-      }, 350);
+      }, 250);
     }
   }
 
@@ -1409,7 +1490,10 @@ export default function Home() {
           "INPUT" ||
         event.target
           ?.tagName ===
-          "TEXTAREA"
+          "TEXTAREA" ||
+        event.target
+          ?.tagName ===
+          "BUTTON"
       ) {
         return;
       }
@@ -1430,7 +1514,10 @@ export default function Home() {
           "INPUT" ||
         event.target
           ?.tagName ===
-          "TEXTAREA"
+          "TEXTAREA" ||
+        event.target
+          ?.tagName ===
+          "BUTTON"
       ) {
         return;
       }
@@ -1464,7 +1551,7 @@ export default function Home() {
   });
 
   // ============================================================
-  // MANUAL TEXT
+  // MANUAL TEXT FALLBACK
   // ============================================================
 
   function handleManualSubmit(
@@ -1490,53 +1577,7 @@ export default function Home() {
   }
 
   // ============================================================
-  // FULL SCREEN HOLD
-  // ============================================================
-
-  function isInteractiveElement(
-    target
-  ) {
-    if (!target?.closest) {
-      return false;
-    }
-
-    return Boolean(
-      target.closest(
-        "button, input, textarea, select, a, form"
-      )
-    );
-  }
-
-  function handleScreenPointerDown(
-    event
-  ) {
-    if (
-      isInteractiveElement(
-        event.target
-      )
-    ) {
-      return;
-    }
-
-    startListening();
-  }
-
-  function handleScreenPointerUp(
-    event
-  ) {
-    if (
-      isInteractiveElement(
-        event.target
-      )
-    ) {
-      return;
-    }
-
-    stopListening();
-  }
-
-  // ============================================================
-  // STATUS
+  // SCREEN STATUS
   // ============================================================
 
   const statusTitle =
@@ -1554,7 +1595,7 @@ export default function Home() {
       : thinking
       ? "Checking what the camera sees."
       : cameraReady
-      ? "Hold to ask, or take a photo without speaking."
+      ? "Hold Ask, or choose Take Photo."
       : "Getting the camera ready.";
 
   // ============================================================
@@ -1565,15 +1606,6 @@ export default function Home() {
     <main
       style={
         styles.page
-      }
-      onPointerDown={
-        handleScreenPointerDown
-      }
-      onPointerUp={
-        handleScreenPointerUp
-      }
-      onPointerCancel={
-        handleScreenPointerUp
       }
     >
       <video
@@ -1614,7 +1646,7 @@ export default function Home() {
               styles.logo
             }
           >
-            What&apos;s This Camera
+            What&apos;s This Photo
           </h1>
 
           <p
@@ -1622,8 +1654,8 @@ export default function Home() {
               styles.tagline
             }
           >
-            See what&apos;s around you.
-            Ask naturally.
+            Your surroundings,
+            spoken.
           </p>
         </div>
 
@@ -1638,7 +1670,7 @@ export default function Home() {
           }
         >
           {cameraReady
-            ? "CAMERA READY"
+            ? "READY"
             : "STARTING"}
         </div>
       </header>
@@ -1693,13 +1725,14 @@ export default function Home() {
         style={
           styles.controls
         }
-        aria-label="What's This Camera controls"
+        aria-label="What's This Photo controls"
       >
         {answer && (
           <div
             style={
               styles.answerCard
             }
+            aria-live="off"
           >
             {transcript && (
               <p
@@ -1729,10 +1762,10 @@ export default function Home() {
               !cameraReady
             }
             style={{
-              ...styles.mainButton,
+              ...styles.askButton,
 
               ...(listening
-                ? styles.mainButtonActive
+                ? styles.askButtonListening
                 : {}),
 
               ...((thinking ||
@@ -1742,34 +1775,34 @@ export default function Home() {
             }}
             aria-label={
               listening
-                ? "Release when finished asking your question"
-                : "Hold to ask a question"
+                ? "Listening. Release to send your question."
+                : "Hold this button while asking a question."
             }
             onPointerDown={(
               event
             ) => {
-              event.stopPropagation();
+              event.preventDefault();
 
               startListening();
             }}
             onPointerUp={(
               event
             ) => {
-              event.stopPropagation();
+              event.preventDefault();
 
               stopListening();
             }}
             onPointerCancel={(
               event
             ) => {
-              event.stopPropagation();
+              event.preventDefault();
 
               stopListening();
             }}
           >
             <span
               style={
-                styles.buttonIcon
+                styles.askIcon
               }
               aria-hidden="true"
             >
@@ -1781,26 +1814,25 @@ export default function Home() {
             <span>
               <span
                 style={
-                  styles.buttonTitle
+                  styles.askTitle
                 }
               >
                 {listening
-                  ? "Release When Finished"
+                  ? "Release to Ask"
                   : thinking
                   ? "Looking..."
-                  : "Hold & Ask"}
+                  : "Hold to Ask"}
               </span>
 
-              {!listening &&
-                !thinking && (
-                  <span
-                    style={
-                      styles.buttonHelp
-                    }
-                  >
-                    Hold anywhere or Space
-                  </span>
-                )}
+              <span
+                style={
+                  styles.askHelp
+                }
+              >
+                {listening
+                  ? "I’m listening"
+                  : "Hold while speaking"}
+              </span>
             </span>
           </button>
         ) : (
@@ -1818,7 +1850,7 @@ export default function Home() {
                 styles.manualLabel
               }
             >
-              Ask about what the camera sees
+              Ask what the camera sees
             </label>
 
             <div
@@ -1835,8 +1867,7 @@ export default function Home() {
                   event
                 ) =>
                   setManualText(
-                    event.target
-                      .value
+                    event.target.value
                   )
                 }
                 placeholder="What is in front of me?"
@@ -1859,8 +1890,10 @@ export default function Home() {
 
         <button
           type="button"
-          onClick={
-            submitImageOnly
+          onClick={() =>
+            submitImageOnly(
+              false
+            )
           }
           disabled={
             thinking ||
@@ -1874,7 +1907,7 @@ export default function Home() {
               ? styles.disabled
               : {}),
           }}
-          aria-label="Take a photo and describe it without asking a question"
+          aria-label="Take a photo and automatically describe what the camera sees. No speaking required."
         >
           <span
             style={
@@ -1882,24 +1915,24 @@ export default function Home() {
             }
             aria-hidden="true"
           >
-            ◉
+            ◎
           </span>
 
           <span>
-            <strong
+            <span
               style={
                 styles.photoTitle
               }
             >
               Take Photo
-            </strong>
+            </span>
 
             <span
               style={
                 styles.photoHelp
               }
             >
-              No question needed
+              No speaking required
             </span>
           </span>
         </button>
@@ -1909,53 +1942,6 @@ export default function Home() {
             styles.quickActions
           }
         >
-          <button
-            type="button"
-            onClick={
-              describeScene
-            }
-            disabled={
-              thinking ||
-              !cameraReady
-            }
-            style={{
-              ...styles.secondaryButton,
-
-              ...((thinking ||
-              !cameraReady)
-                ? styles.disabled
-                : {}),
-            }}
-            aria-label="Describe scene"
-          >
-            <span
-              style={
-                styles.secondaryIcon
-              }
-              aria-hidden="true"
-            >
-              ◎
-            </span>
-
-            <span>
-              <strong
-                style={
-                  styles.secondaryTitle
-                }
-              >
-                Describe Scene
-              </strong>
-
-              <span
-                style={
-                  styles.secondaryHelp
-                }
-              >
-                Say “describe scene”
-              </span>
-            </span>
-          </button>
-
           <button
             type="button"
             onClick={
@@ -1973,7 +1959,7 @@ export default function Home() {
                 ? styles.disabled
                 : {}),
             }}
-            aria-label="Repeat answer"
+            aria-label="Repeat the last answer"
           >
             <span
               style={
@@ -1990,7 +1976,7 @@ export default function Home() {
                   styles.secondaryTitle
                 }
               >
-                Repeat Answer
+                Repeat
               </strong>
 
               <span
@@ -2002,29 +1988,81 @@ export default function Home() {
               </span>
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={
+              playInstructions
+            }
+            style={
+              styles.secondaryButton
+            }
+            aria-label="Hear instructions"
+          >
+            <span
+              style={
+                styles.secondaryIcon
+              }
+              aria-hidden="true"
+            >
+              ?
+            </span>
+
+            <span>
+              <strong
+                style={
+                  styles.secondaryTitle
+                }
+              >
+                Instructions
+              </strong>
+
+              <span
+                style={
+                  styles.secondaryHelp
+                }
+              >
+                Say “repeat instructions”
+              </span>
+            </span>
+          </button>
         </div>
 
         <button
           type="button"
           onClick={
-            playInstructions
+            describeScene
           }
-          style={
-            styles.instructionsButton
+          disabled={
+            thinking ||
+            !cameraReady
           }
-          aria-label="Hear full instructions"
+          style={{
+            ...styles.sceneButton,
+
+            ...((thinking ||
+            !cameraReady)
+              ? styles.disabled
+              : {}),
+          }}
+          aria-label="Describe the current scene"
         >
-          🔊 Hear Instructions
+          Describe Scene
+          <span
+            style={
+              styles.sceneHelp
+            }
+          >
+            Say “describe scene”
+          </span>
         </button>
 
         <p
           style={
-            styles.voiceHint
+            styles.keyboardHint
           }
         >
-          “describe scene” •
-          “repeat” •
-          “repeat instructions”
+          Keyboard: hold Space to ask
         </p>
       </section>
     </main>
@@ -2057,12 +2095,6 @@ const styles = {
 
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
-
-    cursor:
-      "pointer",
-
-    touchAction:
-      "none",
   },
 
   video: {
@@ -2091,7 +2123,7 @@ const styles = {
     inset: 0,
 
     background:
-      "linear-gradient(to bottom, rgba(0,0,0,.88) 0%, rgba(0,0,0,.3) 35%, rgba(0,0,0,.38) 52%, rgba(0,0,0,.98) 100%)",
+      "linear-gradient(to bottom, rgba(0,0,0,.90) 0%, rgba(0,0,0,.22) 34%, rgba(0,0,0,.42) 54%, rgba(0,0,0,.99) 100%)",
 
     pointerEvents:
       "none",
@@ -2110,17 +2142,17 @@ const styles = {
     display:
       "flex",
 
-    alignItems:
-      "flex-start",
-
     justifyContent:
       "space-between",
+
+    alignItems:
+      "flex-start",
 
     gap:
       "12px",
 
     padding:
-      "max(22px, env(safe-area-inset-top)) 20px 20px",
+      "max(22px, env(safe-area-inset-top)) 18px 16px",
 
     pointerEvents:
       "none",
@@ -2133,55 +2165,55 @@ const styles = {
       "#fff",
 
     fontSize:
-      "clamp(28px, 7vw, 40px)",
+      "clamp(30px, 7vw, 42px)",
 
     fontWeight:
       900,
 
     lineHeight:
-      1,
+      0.98,
 
     letterSpacing:
-      "-1.4px",
+      "-1.3px",
 
     textShadow:
-      "0 3px 20px rgba(0,0,0,.55)",
+      "0 3px 18px rgba(0,0,0,.75)",
   },
 
   tagline: {
     margin:
       "8px 0 0",
 
-    maxWidth:
-      "260px",
-
     color:
-      "rgba(255,255,255,.92)",
+      "#fff",
 
     fontSize:
       "15px",
 
+    lineHeight:
+      1.25,
+
     fontWeight:
       700,
 
-    lineHeight:
-      1.3,
+    textShadow:
+      "0 2px 12px rgba(0,0,0,.9)",
   },
 
   readyBadge: {
     flexShrink: 0,
 
     padding:
-      "8px 11px",
+      "8px 12px",
 
     border:
-      "2px solid rgba(255,255,255,.7)",
+      "2px solid #fff",
 
     borderRadius:
       "999px",
 
     backgroundColor:
-      "rgba(0,0,0,.72)",
+      "rgba(0,0,0,.78)",
 
     color:
       "#fff",
@@ -2193,7 +2225,7 @@ const styles = {
       900,
 
     letterSpacing:
-      "1px",
+      "1.2px",
   },
 
   centerStatus: {
@@ -2203,13 +2235,13 @@ const styles = {
     zIndex: 5,
 
     top:
-      "19%",
+      "20%",
 
     left:
       "50%",
 
     width:
-      "min(88vw, 460px)",
+      "min(90vw, 480px)",
 
     transform:
       "translateX(-50%)",
@@ -2232,10 +2264,10 @@ const styles = {
 
   statusCircle: {
     width:
-      "68px",
+      "72px",
 
     height:
-      "68px",
+      "72px",
 
     display:
       "flex",
@@ -2247,25 +2279,25 @@ const styles = {
       "center",
 
     border:
-      "3px solid #fff",
+      "4px solid #fff",
 
     borderRadius:
       "50%",
 
     backgroundColor:
-      "rgba(0,0,0,.75)",
+      "rgba(0,0,0,.82)",
 
     color:
       "#fff",
 
     fontSize:
-      "27px",
+      "28px",
 
     fontWeight:
       900,
 
     boxShadow:
-      "0 8px 30px rgba(0,0,0,.4)",
+      "0 10px 35px rgba(0,0,0,.5)",
   },
 
   listeningCircle: {
@@ -2275,53 +2307,53 @@ const styles = {
 
   thinkingCircle: {
     fontSize:
-      "16px",
+      "15px",
 
     letterSpacing:
-      "3px",
+      "4px",
   },
 
   statusTitle: {
     margin:
-      "12px 0 0",
+      "13px 0 0",
 
     color:
       "#fff",
 
     fontSize:
-      "clamp(29px, 7vw, 41px)",
+      "clamp(30px, 8vw, 43px)",
 
     fontWeight:
       900,
 
-    letterSpacing:
-      "-.8px",
+    lineHeight:
+      1,
 
     textShadow:
-      "0 3px 18px rgba(0,0,0,.7)",
+      "0 3px 18px rgba(0,0,0,.85)",
   },
 
   statusMessage: {
     maxWidth:
-      "370px",
+      "360px",
 
     margin:
-      "7px 0 0",
+      "8px 0 0",
 
     color:
-      "rgba(255,255,255,.95)",
+      "#fff",
 
     fontSize:
-      "16px",
+      "17px",
 
     fontWeight:
       700,
 
     lineHeight:
-      1.4,
+      1.35,
 
     textShadow:
-      "0 2px 14px rgba(0,0,0,.8)",
+      "0 2px 16px rgba(0,0,0,.9)",
   },
 
   controls: {
@@ -2347,7 +2379,7 @@ const styles = {
       "8px",
 
     padding:
-      "16px 16px max(18px, env(safe-area-inset-bottom))",
+      "14px 14px max(16px, env(safe-area-inset-bottom))",
   },
 
   answerCard: {
@@ -2355,31 +2387,25 @@ const styles = {
       "100%",
 
     maxWidth:
-      "560px",
+      "580px",
 
     boxSizing:
       "border-box",
 
     padding:
-      "15px 18px",
+      "15px 17px",
 
     border:
-      "2px solid rgba(255,255,255,.45)",
+      "3px solid #fff",
 
     borderRadius:
       "20px",
 
     backgroundColor:
-      "rgba(0,0,0,.92)",
-
-    backdropFilter:
-      "blur(18px)",
+      "rgba(0,0,0,.94)",
 
     boxShadow:
-      "0 12px 35px rgba(0,0,0,.4)",
-
-    pointerEvents:
-      "none",
+      "0 12px 35px rgba(0,0,0,.55)",
   },
 
   questionText: {
@@ -2387,13 +2413,13 @@ const styles = {
       "0 0 7px",
 
     color:
-      "rgba(255,255,255,.72)",
+      "rgba(255,255,255,.78)",
 
     fontSize:
-      "13px",
+      "14px",
 
     fontWeight:
-      700,
+      750,
 
     lineHeight:
       1.35,
@@ -2406,27 +2432,24 @@ const styles = {
       "#fff",
 
     fontSize:
-      "clamp(20px, 5.4vw, 27px)",
+      "clamp(21px, 5.5vw, 28px)",
 
     fontWeight:
       850,
 
     lineHeight:
       1.28,
-
-    letterSpacing:
-      "-.2px",
   },
 
-  mainButton: {
+  askButton: {
     width:
       "100%",
 
     maxWidth:
-      "560px",
+      "580px",
 
     minHeight:
-      "88px",
+      "102px",
 
     display:
       "flex",
@@ -2438,19 +2461,19 @@ const styles = {
       "center",
 
     gap:
-      "16px",
+      "17px",
+
+    padding:
+      "15px 22px",
 
     boxSizing:
       "border-box",
-
-    padding:
-      "14px 22px",
 
     border:
       "4px solid #fff",
 
     borderRadius:
-      "24px",
+      "26px",
 
     backgroundColor:
       "#fff",
@@ -2461,20 +2484,20 @@ const styles = {
     cursor:
       "pointer",
 
+    touchAction:
+      "none",
+
     userSelect:
       "none",
 
     WebkitUserSelect:
       "none",
 
-    touchAction:
-      "none",
-
     boxShadow:
-      "0 14px 38px rgba(0,0,0,.45)",
+      "0 15px 40px rgba(0,0,0,.55)",
   },
 
-  mainButtonActive: {
+  askButtonListening: {
     backgroundColor:
       "#111",
 
@@ -2485,12 +2508,12 @@ const styles = {
       "scale(.985)",
   },
 
-  buttonIcon: {
+  askIcon: {
     width:
-      "50px",
+      "54px",
 
     height:
-      "50px",
+      "54px",
 
     flexShrink: 0,
 
@@ -2513,41 +2536,41 @@ const styles = {
       "#fff",
 
     fontSize:
-      "23px",
+      "25px",
   },
 
-  buttonTitle: {
+  askTitle: {
     display:
       "block",
 
     fontSize:
-      "22px",
+      "24px",
 
     fontWeight:
       900,
 
     lineHeight:
-      1.1,
+      1.05,
 
     textAlign:
       "left",
   },
 
-  buttonHelp: {
+  askHelp: {
     display:
       "block",
 
     marginTop:
-      "5px",
+      "6px",
 
     fontSize:
-      "13px",
+      "14px",
 
     fontWeight:
-      650,
+      700,
 
     opacity:
-      0.65,
+      0.7,
 
     textAlign:
       "left",
@@ -2558,10 +2581,10 @@ const styles = {
       "100%",
 
     maxWidth:
-      "560px",
+      "580px",
 
     minHeight:
-      "62px",
+      "70px",
 
     display:
       "flex",
@@ -2573,22 +2596,22 @@ const styles = {
       "center",
 
     gap:
-      "12px",
+      "13px",
 
     boxSizing:
       "border-box",
 
     padding:
-      "10px 18px",
+      "11px 18px",
 
     border:
       "3px solid #fff",
 
     borderRadius:
-      "18px",
+      "20px",
 
     backgroundColor:
-      "rgba(0,0,0,.88)",
+      "rgba(0,0,0,.92)",
 
     color:
       "#fff",
@@ -2598,13 +2621,16 @@ const styles = {
 
     textAlign:
       "left",
+
+    boxShadow:
+      "0 8px 24px rgba(0,0,0,.35)",
   },
 
   photoIcon: {
-    fontSize:
-      "25px",
-
     flexShrink: 0,
+
+    fontSize:
+      "26px",
   },
 
   photoTitle: {
@@ -2612,7 +2638,7 @@ const styles = {
       "block",
 
     fontSize:
-      "17px",
+      "19px",
 
     fontWeight:
       900,
@@ -2626,13 +2652,13 @@ const styles = {
       "2px",
 
     color:
-      "rgba(255,255,255,.72)",
+      "rgba(255,255,255,.78)",
 
     fontSize:
-      "11px",
+      "12px",
 
     fontWeight:
-      650,
+      700,
   },
 
   quickActions: {
@@ -2640,7 +2666,7 @@ const styles = {
       "100%",
 
     maxWidth:
-      "560px",
+      "580px",
 
     display:
       "grid",
@@ -2672,13 +2698,13 @@ const styles = {
       "9px 12px",
 
     border:
-      "2px solid rgba(255,255,255,.55)",
+      "2px solid rgba(255,255,255,.8)",
 
     borderRadius:
       "17px",
 
     backgroundColor:
-      "rgba(10,10,10,.92)",
+      "rgba(0,0,0,.9)",
 
     color:
       "#fff",
@@ -2693,8 +2719,17 @@ const styles = {
   secondaryIcon: {
     flexShrink: 0,
 
+    width:
+      "26px",
+
+    textAlign:
+      "center",
+
     fontSize:
-      "22px",
+      "21px",
+
+    fontWeight:
+      900,
   },
 
   secondaryTitle: {
@@ -2702,10 +2737,10 @@ const styles = {
       "block",
 
     fontSize:
-      "14px",
+      "15px",
 
     fontWeight:
-      850,
+      900,
   },
 
   secondaryHelp: {
@@ -2716,69 +2751,92 @@ const styles = {
       "3px",
 
     color:
-      "rgba(255,255,255,.72)",
+      "rgba(255,255,255,.75)",
 
     fontSize:
       "10px",
 
     fontWeight:
-      650,
+      700,
 
     lineHeight:
       1.2,
   },
 
-  instructionsButton: {
-    minHeight:
-      "43px",
+  sceneButton: {
+    width:
+      "100%",
 
-    padding:
-      "8px 18px",
+    maxWidth:
+      "580px",
+
+    minHeight:
+      "48px",
+
+    display:
+      "flex",
+
+    alignItems:
+      "center",
+
+    justifyContent:
+      "center",
+
+    gap:
+      "8px",
 
     border:
-      "2px solid rgba(255,255,255,.5)",
+      "2px solid rgba(255,255,255,.62)",
 
     borderRadius:
-      "999px",
+      "16px",
 
     backgroundColor:
-      "rgba(0,0,0,.84)",
+      "rgba(0,0,0,.86)",
 
     color:
       "#fff",
 
     fontSize:
-      "13px",
+      "14px",
 
     fontWeight:
-      800,
+      850,
 
     cursor:
       "pointer",
   },
 
-  voiceHint: {
+  sceneHelp: {
+    color:
+      "rgba(255,255,255,.7)",
+
+    fontSize:
+      "10px",
+
+    fontWeight:
+      700,
+  },
+
+  keyboardHint: {
     margin: 0,
 
     color:
-      "rgba(255,255,255,.72)",
+      "rgba(255,255,255,.68)",
 
     fontSize:
-      "11px",
+      "10px",
 
     fontWeight:
       700,
 
     textAlign:
       "center",
-
-    pointerEvents:
-      "none",
   },
 
   disabled: {
     opacity:
-      0.48,
+      0.45,
 
     cursor:
       "default",
@@ -2789,7 +2847,7 @@ const styles = {
       "100%",
 
     maxWidth:
-      "560px",
+      "580px",
 
     boxSizing:
       "border-box",
@@ -2798,13 +2856,13 @@ const styles = {
       "15px",
 
     border:
-      "2px solid rgba(255,255,255,.5)",
+      "3px solid #fff",
 
     borderRadius:
-      "19px",
+      "20px",
 
     backgroundColor:
-      "rgba(0,0,0,.9)",
+      "rgba(0,0,0,.94)",
   },
 
   manualLabel: {
@@ -2818,10 +2876,10 @@ const styles = {
       "#fff",
 
     fontSize:
-      "15px",
+      "16px",
 
     fontWeight:
-      800,
+      850,
   },
 
   manualRow: {
@@ -2858,7 +2916,7 @@ const styles = {
 
   smallButton: {
     minWidth:
-      "74px",
+      "76px",
 
     border: 0,
 
@@ -2876,5 +2934,8 @@ const styles = {
 
     fontWeight:
       900,
+
+    cursor:
+      "pointer",
   },
 };
