@@ -12,6 +12,8 @@ export default function Home() {
   const cameraReadyRef = useRef(false);
   const audioUnlockedRef = useRef(false);
 
+  const speechCacheRef = useRef(new Map());
+
   const [cameraReady, setCameraReady] = useState(false);
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -45,41 +47,62 @@ export default function Home() {
   // ============================================================
 
   async function getAudioContext() {
-    if (typeof window === "undefined") return null;
-
-    const AudioContext =
-      window.AudioContext || window.webkitAudioContext;
-
-    if (!AudioContext) return null;
-
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
+    if (typeof window === "undefined") {
+      return null;
     }
 
-    const context = audioContextRef.current;
+    const AudioContext =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if (!AudioContext) {
+      return null;
+    }
+
+    if (!audioContextRef.current) {
+      audioContextRef.current =
+        new AudioContext();
+    }
+
+    const context =
+      audioContextRef.current;
 
     if (context.state === "suspended") {
       try {
         await context.resume();
       } catch (error) {
-        console.error("Could not resume audio:", error);
+        console.error(
+          "Could not resume audio:",
+          error
+        );
       }
     }
 
     return context;
   }
 
-  async function playTone(frequency = 700, duration = 120) {
+  async function playTone(
+    frequency = 700,
+    duration = 120
+  ) {
     try {
-      const context = await getAudioContext();
+      const context =
+        await getAudioContext();
 
-      if (!context) return;
+      if (!context) {
+        return;
+      }
 
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
+      const oscillator =
+        context.createOscillator();
+
+      const gain =
+        context.createGain();
 
       oscillator.connect(gain);
-      gain.connect(context.destination);
+      gain.connect(
+        context.destination
+      );
 
       oscillator.type = "sine";
 
@@ -95,27 +118,28 @@ export default function Home() {
 
       gain.gain.exponentialRampToValueAtTime(
         0.001,
-        context.currentTime + duration / 1000
+        context.currentTime +
+          duration / 1000
       );
 
-      oscillator.start(context.currentTime);
+      oscillator.start(
+        context.currentTime
+      );
 
       oscillator.stop(
-        context.currentTime + duration / 1000
+        context.currentTime +
+          duration / 1000
       );
     } catch (error) {
-      console.error("Tone error:", error);
+      console.error(
+        "Tone error:",
+        error
+      );
     }
   }
 
   // ============================================================
   // AUDIO CUES
-  //
-  // HIGH = START SPEAKING
-  // LOW = STOP / PROCESSING
-  // RISING PAIR = SUCCESS
-  // THREE LOW = NOTHING CAPTURED
-  // FALLING PAIR = SYSTEM ERROR
   // ============================================================
 
   function listeningCue() {
@@ -145,7 +169,13 @@ export default function Home() {
       playTone(260, 260);
     }, 460);
 
-    vibrate([150, 80, 150, 80, 250]);
+    vibrate([
+      150,
+      80,
+      150,
+      80,
+      250,
+    ]);
   }
 
   function errorCue() {
@@ -155,34 +185,44 @@ export default function Home() {
       playTone(300, 260);
     }, 190);
 
-    vibrate([200, 100, 300]);
+    vibrate([
+      200,
+      100,
+      300,
+    ]);
   }
 
   function vibrate(pattern) {
     if (
-      typeof navigator !== "undefined" &&
-      typeof navigator.vibrate === "function"
+      typeof navigator !==
+        "undefined" &&
+      typeof navigator.vibrate ===
+        "function"
     ) {
       navigator.vibrate(pattern);
     }
   }
 
   // ============================================================
-  // STOP CURRENT SPEECH / AUDIO
+  // STOP CURRENT AUDIO
   // ============================================================
 
   function stopCurrentAudio() {
     if (currentAudioRef.current) {
       try {
         currentAudioRef.current.pause();
-        currentAudioRef.current.currentTime = 0;
+
+        currentAudioRef.current.currentTime =
+          0;
       } catch {}
 
-      currentAudioRef.current = null;
+      currentAudioRef.current =
+        null;
     }
 
     if (
-      typeof window !== "undefined" &&
+      typeof window !==
+        "undefined" &&
       window.speechSynthesis
     ) {
       window.speechSynthesis.cancel();
@@ -190,13 +230,14 @@ export default function Home() {
   }
 
   // ============================================================
-  // BROWSER TEXT TO SPEECH
+  // EMERGENCY BROWSER VOICE FALLBACK
   // ============================================================
 
-  function speak(text) {
+  function browserSpeak(text) {
     if (
       !text ||
-      typeof window === "undefined" ||
+      typeof window ===
+        "undefined" ||
       !window.speechSynthesis
     ) {
       return;
@@ -204,54 +245,161 @@ export default function Home() {
 
     stopCurrentAudio();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance =
+      new SpeechSynthesisUtterance(
+        text
+      );
 
     utterance.rate = 1.03;
     utterance.pitch = 1;
     utterance.volume = 1;
 
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.speak(
+      utterance
+    );
   }
 
   // ============================================================
-  // ELEVENLABS AUDIO
+  // PLAY ELEVENLABS AUDIO
   // ============================================================
 
-  function playElevenLabsAudio(audioBase64, fallbackText) {
+  function playElevenLabsAudio(
+    audioBase64,
+    fallbackText
+  ) {
     if (!audioBase64) {
-      speak(fallbackText);
+      browserSpeak(
+        fallbackText
+      );
+
       return;
     }
 
     try {
       stopCurrentAudio();
 
-      const audio = new Audio(
-        `data:audio/mpeg;base64,${audioBase64}`
-      );
+      const audio =
+        new Audio(
+          `data:audio/mpeg;base64,${audioBase64}`
+        );
 
-      currentAudioRef.current = audio;
+      currentAudioRef.current =
+        audio;
 
       audio.onended = () => {
-        currentAudioRef.current = null;
+        currentAudioRef.current =
+          null;
       };
 
       audio.onerror = () => {
-        currentAudioRef.current = null;
-        speak(fallbackText);
+        currentAudioRef.current =
+          null;
+
+        browserSpeak(
+          fallbackText
+        );
       };
 
-      audio.play().catch((error) => {
-        console.error("ElevenLabs playback failed:", error);
+      audio
+        .play()
+        .catch((error) => {
+          console.error(
+            "ElevenLabs playback failed:",
+            error
+          );
 
-        currentAudioRef.current = null;
+          currentAudioRef.current =
+            null;
 
-        speak(fallbackText);
-      });
+          browserSpeak(
+            fallbackText
+          );
+        });
     } catch (error) {
-      console.error("Audio playback error:", error);
+      console.error(
+        "Audio playback error:",
+        error
+      );
 
-      speak(fallbackText);
+      browserSpeak(
+        fallbackText
+      );
+    }
+  }
+
+  // ============================================================
+  // ELEVENLABS SPEECH FOR APP MESSAGES
+  // ============================================================
+
+  async function speak(text) {
+    if (!text) {
+      return;
+    }
+
+    stopCurrentAudio();
+
+    const cachedAudio =
+      speechCacheRef.current.get(
+        text
+      );
+
+    if (cachedAudio) {
+      playElevenLabsAudio(
+        cachedAudio,
+        text
+      );
+
+      return;
+    }
+
+    try {
+      const response =
+        await fetch(
+          "/api/speak",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                text,
+              }),
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (
+        !response.ok ||
+        !data.audioBase64
+      ) {
+        throw new Error(
+          data.error ||
+            "ElevenLabs speech failed"
+        );
+      }
+
+      speechCacheRef.current.set(
+        text,
+        data.audioBase64
+      );
+
+      playElevenLabsAudio(
+        data.audioBase64,
+        text
+      );
+    } catch (error) {
+      console.error(
+        "App speech error:",
+        error
+      );
+
+      browserSpeak(text);
     }
   }
 
@@ -294,38 +442,55 @@ export default function Home() {
 
     async function startCamera() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: {
-              ideal: "environment",
-            },
-          },
-          audio: false,
-        });
+        stream =
+          await navigator.mediaDevices.getUserMedia(
+            {
+              video: {
+                facingMode: {
+                  ideal:
+                    "environment",
+                },
+              },
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+              audio: false,
+            }
+          );
+
+        if (
+          videoRef.current
+        ) {
+          videoRef.current.srcObject =
+            stream;
         }
 
         setCameraReady(true);
-        cameraReadyRef.current = true;
+
+        cameraReadyRef.current =
+          true;
 
         setStatus("Ready");
 
-        // Try to announce automatically.
-        // Browser autoplay rules may prevent this before interaction.
         setTimeout(() => {
-          if (!audioUnlockedRef.current) {
+          if (
+            !audioUnlockedRef.current
+          ) {
             speakWelcome();
           }
         }, 700);
       } catch (error) {
-        console.error("Camera error:", error);
+        console.error(
+          "Camera error:",
+          error
+        );
 
         setCameraReady(false);
-        cameraReadyRef.current = false;
 
-        setStatus("Camera unavailable");
+        cameraReadyRef.current =
+          false;
+
+        setStatus(
+          "Camera unavailable"
+        );
       }
     }
 
@@ -333,7 +498,12 @@ export default function Home() {
 
     return () => {
       if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+        stream
+          .getTracks()
+          .forEach(
+            (track) =>
+              track.stop()
+          );
       }
     };
   }, []);
@@ -343,24 +513,75 @@ export default function Home() {
   // ============================================================
 
   function capturePhotoBase64() {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
+    const video =
+      videoRef.current;
 
-    if (!video || !canvas) {
+    const canvas =
+      canvasRef.current;
+
+    if (
+      !video ||
+      !canvas
+    ) {
       return null;
     }
 
-    const width = video.videoWidth;
-    const height = video.videoHeight;
+    const originalWidth =
+      video.videoWidth;
 
-    if (!width || !height) {
+    const originalHeight =
+      video.videoHeight;
+
+    if (
+      !originalWidth ||
+      !originalHeight
+    ) {
       return null;
     }
 
-    canvas.width = width;
-    canvas.height = height;
+    const maxDimension = 1280;
 
-    const context = canvas.getContext("2d");
+    let width =
+      originalWidth;
+
+    let height =
+      originalHeight;
+
+    if (
+      width >
+        maxDimension ||
+      height >
+        maxDimension
+    ) {
+      const scale =
+        Math.min(
+          maxDimension /
+            width,
+          maxDimension /
+            height
+        );
+
+      width =
+        Math.round(
+          width * scale
+        );
+
+      height =
+        Math.round(
+          height * scale
+        );
+    }
+
+    canvas.width =
+      width;
+
+    canvas.height =
+      height;
+
+    const context =
+      canvas.getContext(
+        "2d"
+      );
 
     if (!context) {
       return null;
@@ -374,12 +595,15 @@ export default function Home() {
       height
     );
 
-    const dataUrl = canvas.toDataURL(
-      "image/jpeg",
-      0.72
-    );
+    const dataUrl =
+      canvas.toDataURL(
+        "image/jpeg",
+        0.68
+      );
 
-    return dataUrl.split(",")[1];
+    return dataUrl.split(
+      ","
+    )[1];
   }
 
   // ============================================================
@@ -388,16 +612,23 @@ export default function Home() {
 
   async function askAboutImage(
     question,
-    displayQuestion = question
+    displayQuestion =
+      question
   ) {
-    if (!question || thinkingRef.current) {
+    if (
+      !question ||
+      thinkingRef.current
+    ) {
       return;
     }
 
-    const imageBase64 = capturePhotoBase64();
+    const imageBase64 =
+      capturePhotoBase64();
 
     if (!imageBase64) {
-      setStatus("No image captured");
+      setStatus(
+        "No image captured"
+      );
 
       failureCue();
 
@@ -410,31 +641,44 @@ export default function Home() {
       return;
     }
 
-    thinkingRef.current = true;
+    thinkingRef.current =
+      true;
+
     setThinking(true);
 
-    setTranscript(displayQuestion);
+    setTranscript(
+      displayQuestion
+    );
+
     setStatus("Looking");
 
     try {
-      const response = await fetch("/api/ask", {
-        method: "POST",
+      const response =
+        await fetch(
+          "/api/ask",
+          {
+            method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-        body: JSON.stringify({
-          question,
-          imageBase64,
-        }),
-      });
+            body:
+              JSON.stringify({
+                question,
+                imageBase64,
+              }),
+          }
+        );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Request failed"
+          data.error ||
+            "Request failed"
         );
       }
 
@@ -442,32 +686,48 @@ export default function Home() {
         data.answer ||
         "I couldn't determine an answer.";
 
-      setAnswer(responseText);
+      setAnswer(
+        responseText
+      );
 
       setLastAudioBase64(
-        data.audioBase64 || null
+        data.audioBase64 ||
+          null
       );
 
       setStatus("Ready");
 
       successCue();
 
-      vibrate([60, 40, 100]);
+      vibrate([
+        60,
+        40,
+        100,
+      ]);
 
       setTimeout(() => {
-        if (data.audioBase64) {
+        if (
+          data.audioBase64
+        ) {
           playElevenLabsAudio(
             data.audioBase64,
             responseText
           );
         } else {
-          speak(responseText);
+          speak(
+            responseText
+          );
         }
       }, 380);
     } catch (error) {
-      console.error("Ask error:", error);
+      console.error(
+        "Ask error:",
+        error
+      );
 
-      setStatus("Something went wrong");
+      setStatus(
+        "Something went wrong"
+      );
 
       errorCue();
 
@@ -477,7 +737,9 @@ export default function Home() {
         );
       }, 600);
     } finally {
-      thinkingRef.current = false;
+      thinkingRef.current =
+        false;
+
       setThinking(false);
     }
   }
@@ -506,13 +768,13 @@ Be concise, practical, and conversational.
 Put the most useful information first.
 
 Prioritize:
-1. Immediate visible obstacles or potential hazards.
-2. Useful spatial orientation.
-3. Doors, entrances, exits, stairs, curbs, pathways, and changes in level.
-4. People and their approximate positions.
-5. Important nearby objects.
-6. Readable signs, labels, or text.
-7. Other useful context.
+1. The overall scene.
+2. Important objects directly ahead.
+3. Visible obstacles or changes in level.
+4. Doors, entrances, stairs, pathways, openings, and furniture.
+5. People and their approximate positions.
+6. Important nearby objects.
+7. Clearly readable signs, labels, numbers, or text.
 
 Use simple directional language such as:
 "directly ahead,"
@@ -520,11 +782,11 @@ Use simple directional language such as:
 "slightly to your right,"
 or clock positions when useful.
 
-Avoid unnecessary decorative visual details.
+Avoid unnecessary decorative details.
 
-Do not claim that an area is definitely safe based on a single camera image.
+Do not claim an area is definitely safe based on a single camera image.
 
-Say "I don't see an obstacle directly ahead" instead of "the path is safe."
+Describe what is actually visible.
 
 If something important is uncertain or outside the camera view, say so briefly.
 `.trim();
@@ -552,7 +814,9 @@ If something important is uncertain or outside the camera view, say so briefly.
       return;
     }
 
-    if (lastAudioBase64) {
+    if (
+      lastAudioBase64
+    ) {
       playElevenLabsAudio(
         lastAudioBase64,
         answer
@@ -566,11 +830,16 @@ If something important is uncertain or outside the camera view, say so briefly.
   // VOICE COMMAND ROUTER
   // ============================================================
 
-  function handleSpokenInput(rawQuestion) {
-    const question = rawQuestion?.trim();
+  function handleSpokenInput(
+    rawQuestion
+  ) {
+    const question =
+      rawQuestion?.trim();
 
     if (!question) {
-      setStatus("No speech detected");
+      setStatus(
+        "No speech detected"
+      );
 
       failureCue();
 
@@ -583,56 +852,78 @@ If something important is uncertain or outside the camera view, say so briefly.
       return;
     }
 
-    const command = question
-      .toLowerCase()
-      .replace(/[.,!?]/g, "")
-      .trim();
+    const command =
+      question
+        .toLowerCase()
+        .replace(
+          /[.,!?]/g,
+          ""
+        )
+        .trim();
 
-    const describeCommands = [
-      "describe scene",
-      "describe the scene",
-      "describe my surroundings",
-      "describe surroundings",
-      "describe what's around me",
-      "describe whats around me",
-      "what's around me",
-      "whats around me",
-      "what is around me",
-    ];
+    const describeCommands =
+      [
+        "describe scene",
+        "describe the scene",
+        "describe my surroundings",
+        "describe surroundings",
+        "describe what's around me",
+        "describe whats around me",
+        "what's around me",
+        "whats around me",
+        "what is around me",
+      ];
 
-    if (describeCommands.includes(command)) {
+    if (
+      describeCommands.includes(
+        command
+      )
+    ) {
       describeScene();
+
       return;
     }
 
-    const repeatCommands = [
-      "repeat",
-      "repeat answer",
-      "repeat the answer",
-      "repeat that",
-      "say that again",
-      "say it again",
-      "what did you say",
-    ];
+    const repeatCommands =
+      [
+        "repeat",
+        "repeat answer",
+        "repeat the answer",
+        "repeat that",
+        "say that again",
+        "say it again",
+        "what did you say",
+      ];
 
-    if (repeatCommands.includes(command)) {
+    if (
+      repeatCommands.includes(
+        command
+      )
+    ) {
       repeatAnswer();
+
       return;
     }
 
-    const helpCommands = [
-      "help",
-      "help me",
-      "instructions",
-      "give me instructions",
-      "what can i say",
-      "what can i do",
-      "how do i use this",
-      "how does this work",
-    ];
+    const helpCommands =
+      [
+        "help",
+        "help me",
+        "instructions",
+        "give me instructions",
+        "what can i say",
+        "what can i do",
+        "how do i use this",
+        "how does this work",
+      ];
 
-    if (helpCommands.includes(command)) {
+    if (
+      helpCommands.includes(
+        command
+      )
+    ) {
       playHelp();
+
       return;
     }
 
@@ -647,144 +938,200 @@ If something important is uncertain or outside the camera view, say so briefly.
   // ============================================================
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
 
     const SpeechRecognition =
       window.SpeechRecognition ||
       window.webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      setSpeechSupported(false);
+    if (
+      !SpeechRecognition
+    ) {
+      setSpeechSupported(
+        false
+      );
+
       return;
     }
 
-    const recognition = new SpeechRecognition();
+    const recognition =
+      new SpeechRecognition();
 
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.maxAlternatives = 1;
+    recognition.lang =
+      "en-US";
 
-    recognition.onstart = () => {
-      listeningRef.current = true;
-      setListening(true);
-      setStatus("Listening");
-    };
+    recognition.interimResults =
+      false;
 
-    recognition.onresult = (event) => {
-      const question =
-        event.results?.[0]?.[0]?.transcript?.trim();
+    recognition.continuous =
+      false;
 
-      listeningRef.current = false;
-      setListening(false);
+    recognition.maxAlternatives =
+      1;
 
-      handleSpokenInput(question);
-    };
+    recognition.onstart =
+      () => {
+        listeningRef.current =
+          true;
 
-    recognition.onerror = (event) => {
-      console.error(
-        "Speech recognition error:",
-        event.error
-      );
+        setListening(true);
 
-      listeningRef.current = false;
-      setListening(false);
-
-      if (event.error === "aborted") {
-        return;
-      }
-
-      if (event.error === "no-speech") {
-        setStatus("No speech detected");
-
-        failureCue();
-
-        setTimeout(() => {
-          speak(
-            "I didn't hear anything. Hold and speak again."
-          );
-        }, 850);
-
-        return;
-      }
-
-      if (event.error === "not-allowed") {
-        setStatus("Microphone unavailable");
-
-        errorCue();
-
-        setTimeout(() => {
-          speak(
-            "Microphone access is unavailable. Please allow microphone access."
-          );
-        }, 600);
-
-        return;
-      }
-
-      if (event.error === "audio-capture") {
-        setStatus("Microphone unavailable");
-
-        errorCue();
-
-        setTimeout(() => {
-          speak(
-            "I can't access the microphone. Please check your microphone and try again."
-          );
-        }, 600);
-
-        return;
-      }
-
-      setStatus("Microphone error");
-
-      errorCue();
-
-      setTimeout(() => {
-        speak(
-          "I couldn't hear your question. Please try again."
+        setStatus(
+          "Listening"
         );
-      }, 600);
-    };
+      };
 
-    recognition.onend = () => {
-      listeningRef.current = false;
-      setListening(false);
-    };
+    recognition.onresult =
+      (event) => {
+        const question =
+          event.results?.[0]?.[0]?.transcript?.trim();
 
-    recognitionRef.current = recognition;
+        listeningRef.current =
+          false;
+
+        setListening(false);
+
+        handleSpokenInput(
+          question
+        );
+      };
+
+    recognition.onerror =
+      (event) => {
+        console.error(
+          "Speech recognition error:",
+          event.error
+        );
+
+        listeningRef.current =
+          false;
+
+        setListening(false);
+
+        if (
+          event.error ===
+          "aborted"
+        ) {
+          return;
+        }
+
+        if (
+          event.error ===
+          "no-speech"
+        ) {
+          setStatus(
+            "No speech detected"
+          );
+
+          failureCue();
+
+          setTimeout(() => {
+            speak(
+              "I didn't hear anything. Hold and speak again."
+            );
+          }, 850);
+
+          return;
+        }
+
+        if (
+          event.error ===
+          "not-allowed"
+        ) {
+          setStatus(
+            "Microphone unavailable"
+          );
+
+          errorCue();
+
+          setTimeout(() => {
+            speak(
+              "Microphone access is unavailable. Please allow microphone access."
+            );
+          }, 600);
+
+          return;
+        }
+
+        if (
+          event.error ===
+          "audio-capture"
+        ) {
+          setStatus(
+            "Microphone unavailable"
+          );
+
+          errorCue();
+
+          setTimeout(() => {
+            speak(
+              "I can't access the microphone. Please check your microphone and try again."
+            );
+          }, 600);
+
+          return;
+        }
+
+        setStatus(
+          "Microphone error"
+        );
+
+        errorCue();
+
+        setTimeout(() => {
+          speak(
+            "I couldn't hear your question. Please try again."
+          );
+        }, 600);
+      };
+
+    recognition.onend =
+      () => {
+        listeningRef.current =
+          false;
+
+        setListening(false);
+      };
+
+    recognitionRef.current =
+      recognition;
 
     return () => {
       try {
         recognition.abort();
       } catch {}
     };
-  }, [answer, lastAudioBase64]);
+  }, [
+    answer,
+    lastAudioBase64,
+  ]);
 
   // ============================================================
   // START LISTENING
-  //
-  // Browser:
-  // pointer down / Space down
-  //
-  // Future Raspberry Pi:
-  // physical GPIO button down
   // ============================================================
 
   async function startListening() {
-    // This is intentionally first.
-    // The user's press should unlock browser audio.
     await getAudioContext();
 
-    audioUnlockedRef.current = true;
+    audioUnlockedRef.current =
+      true;
 
-    if (thinkingRef.current) {
+    if (
+      thinkingRef.current
+    ) {
       errorCue();
 
       return;
     }
 
-    if (!cameraReadyRef.current) {
+    if (
+      !cameraReadyRef.current
+    ) {
       errorCue();
 
       setTimeout(() => {
@@ -796,7 +1143,9 @@ If something important is uncertain or outside the camera view, say so briefly.
       return;
     }
 
-    if (!recognitionRef.current) {
+    if (
+      !recognitionRef.current
+    ) {
       errorCue();
 
       setTimeout(() => {
@@ -808,19 +1157,25 @@ If something important is uncertain or outside the camera view, say so briefly.
       return;
     }
 
-    if (listeningRef.current) {
+    if (
+      listeningRef.current
+    ) {
       return;
     }
 
     stopCurrentAudio();
 
-    listeningRef.current = true;
+    listeningRef.current =
+      true;
+
     setListening(true);
 
     setTranscript("");
-    setStatus("Listening");
 
-    // USER NOW KNOWS TO START SPEAKING.
+    setStatus(
+      "Listening"
+    );
+
     listeningCue();
 
     vibrate(60);
@@ -833,7 +1188,9 @@ If something important is uncertain or outside the camera view, say so briefly.
         error
       );
 
-      listeningRef.current = false;
+      listeningRef.current =
+        false;
+
       setListening(false);
 
       errorCue();
@@ -848,12 +1205,6 @@ If something important is uncertain or outside the camera view, say so briefly.
 
   // ============================================================
   // STOP LISTENING
-  //
-  // Browser:
-  // pointer up / Space up
-  //
-  // Future Raspberry Pi:
-  // physical GPIO button up
   // ============================================================
 
   function stopListening() {
@@ -864,12 +1215,17 @@ If something important is uncertain or outside the camera view, say so briefly.
       return;
     }
 
-    setStatus("Processing question");
+    setStatus(
+      "Processing question"
+    );
 
-    // USER NOW KNOWS THEY CAN STOP SPEAKING.
     submittedCue();
 
-    vibrate([40, 40, 40]);
+    vibrate([
+      40,
+      40,
+      40,
+    ]);
 
     try {
       recognitionRef.current.stop();
@@ -879,7 +1235,9 @@ If something important is uncertain or outside the camera view, say so briefly.
         error
       );
 
-      listeningRef.current = false;
+      listeningRef.current =
+        false;
+
       setListening(false);
 
       errorCue();
@@ -893,16 +1251,23 @@ If something important is uncertain or outside the camera view, say so briefly.
   }
 
   // ============================================================
-  // KEYBOARD / FUTURE PI BUTTON SIMULATOR
+  // KEYBOARD / PI BUTTON SIMULATOR
   // ============================================================
 
   useEffect(() => {
-    function keyDown(event) {
+    function keyDown(
+      event
+    ) {
       if (
-        event.code !== "Space" ||
+        event.code !==
+          "Space" ||
         event.repeat ||
-        event.target?.tagName === "INPUT" ||
-        event.target?.tagName === "TEXTAREA"
+        event.target
+          ?.tagName ===
+          "INPUT" ||
+        event.target
+          ?.tagName ===
+          "TEXTAREA"
       ) {
         return;
       }
@@ -912,11 +1277,18 @@ If something important is uncertain or outside the camera view, say so briefly.
       startListening();
     }
 
-    function keyUp(event) {
+    function keyUp(
+      event
+    ) {
       if (
-        event.code !== "Space" ||
-        event.target?.tagName === "INPUT" ||
-        event.target?.tagName === "TEXTAREA"
+        event.code !==
+          "Space" ||
+        event.target
+          ?.tagName ===
+          "INPUT" ||
+        event.target
+          ?.tagName ===
+          "TEXTAREA"
       ) {
         return;
       }
@@ -953,10 +1325,13 @@ If something important is uncertain or outside the camera view, say so briefly.
   // MANUAL FALLBACK
   // ============================================================
 
-  function handleManualSubmit(event) {
+  function handleManualSubmit(
+    event
+  ) {
     event.preventDefault();
 
-    const question = manualText.trim();
+    const question =
+      manualText.trim();
 
     if (
       !question ||
@@ -967,15 +1342,21 @@ If something important is uncertain or outside the camera view, say so briefly.
 
     setManualText("");
 
-    handleSpokenInput(question);
+    handleSpokenInput(
+      question
+    );
   }
 
   // ============================================================
-  // FULL-SCREEN HOLD INTERACTION
+  // FULL SCREEN HOLD
   // ============================================================
 
-  function isInteractiveElement(target) {
-    if (!target?.closest) return false;
+  function isInteractiveElement(
+    target
+  ) {
+    if (!target?.closest) {
+      return false;
+    }
 
     return Boolean(
       target.closest(
@@ -984,9 +1365,13 @@ If something important is uncertain or outside the camera view, say so briefly.
     );
   }
 
-  function handleScreenPointerDown(event) {
+  function handleScreenPointerDown(
+    event
+  ) {
     if (
-      isInteractiveElement(event.target)
+      isInteractiveElement(
+        event.target
+      )
     ) {
       return;
     }
@@ -994,9 +1379,13 @@ If something important is uncertain or outside the camera view, say so briefly.
     startListening();
   }
 
-  function handleScreenPointerUp(event) {
+  function handleScreenPointerUp(
+    event
+  ) {
     if (
-      isInteractiveElement(event.target)
+      isInteractiveElement(
+        event.target
+      )
     ) {
       return;
     }
@@ -1008,21 +1397,23 @@ If something important is uncertain or outside the camera view, say so briefly.
   // VISUAL STATUS
   // ============================================================
 
-  const statusTitle = listening
-    ? "Listening"
-    : thinking
-    ? "Looking"
-    : cameraReady
-    ? "Ready"
-    : "Starting";
+  const statusTitle =
+    listening
+      ? "Listening"
+      : thinking
+      ? "Looking"
+      : cameraReady
+      ? "Ready"
+      : "Starting";
 
-  const statusMessage = listening
-    ? "Speak now. Release when finished."
-    : thinking
-    ? "Analyzing what the camera sees."
-    : cameraReady
-    ? "Hold anywhere and ask what's around you."
-    : "Getting the camera ready.";
+  const statusMessage =
+    listening
+      ? "Speak now. Release when finished."
+      : thinking
+      ? "Analyzing what the camera sees."
+      : cameraReady
+      ? "Hold anywhere and ask what's around you."
+      : "Getting the camera ready.";
 
   // ============================================================
   // PAGE
@@ -1041,8 +1432,6 @@ If something important is uncertain or outside the camera view, say so briefly.
         handleScreenPointerUp
       }
     >
-      {/* CAMERA */}
-
       <video
         ref={videoRef}
         autoPlay
@@ -1061,35 +1450,51 @@ If something important is uncertain or outside the camera view, say so briefly.
       />
 
       <div
-        style={styles.gradient}
+        style={
+          styles.gradient
+        }
         aria-hidden="true"
       />
 
-      {/* HEADER */}
-
-      <header style={styles.header}>
+      <header
+        style={
+          styles.header
+        }
+      >
         <div>
-          <h1 style={styles.logo}>
-            What&apos;s This Photo
+          <h1
+            style={
+              styles.logo
+            }
+          >
+            What&apos;s This
+            Photo
           </h1>
 
-          <p style={styles.tagline}>
-            Your surroundings, spoken.
+          <p
+            style={
+              styles.tagline
+            }
+          >
+            Your surroundings,
+            spoken.
           </p>
         </div>
 
         <div
-          style={styles.demoBadge}
+          style={
+            styles.demoBadge
+          }
           aria-label="Website demo mode"
         >
           WEB DEMO
         </div>
       </header>
 
-      {/* STATUS */}
-
       <section
-        style={styles.centerStatus}
+        style={
+          styles.centerStatus
+        }
         role="status"
         aria-live="polite"
         aria-atomic="true"
@@ -1115,38 +1520,54 @@ If something important is uncertain or outside the camera view, say so briefly.
             : "✓"}
         </div>
 
-        <h2 style={styles.statusTitle}>
+        <h2
+          style={
+            styles.statusTitle
+          }
+        >
           {statusTitle}
         </h2>
 
-        <p style={styles.statusMessage}>
+        <p
+          style={
+            styles.statusMessage
+          }
+        >
           {statusMessage}
         </p>
       </section>
 
-      {/* CONTROLS */}
-
       <section
-        style={styles.controls}
+        style={
+          styles.controls
+        }
         aria-label="What's This Photo controls"
       >
-        {/* ANSWER */}
-
         {answer && (
-          <div style={styles.answerCard}>
+          <div
+            style={
+              styles.answerCard
+            }
+          >
             {transcript && (
-              <p style={styles.questionText}>
+              <p
+                style={
+                  styles.questionText
+                }
+              >
                 {transcript}
               </p>
             )}
 
-            <p style={styles.answerText}>
+            <p
+              style={
+                styles.answerText
+              }
+            >
               {answer}
             </p>
           </div>
         )}
-
-        {/* MAIN HOLD BUTTON */}
 
         {speechSupported ? (
           <button
@@ -1172,21 +1593,32 @@ If something important is uncertain or outside the camera view, say so briefly.
                 ? "Release to submit your spoken question"
                 : "Hold to ask a question about what the camera sees"
             }
-            onPointerDown={(event) => {
+            onPointerDown={(
+              event
+            ) => {
               event.stopPropagation();
+
               startListening();
             }}
-            onPointerUp={(event) => {
+            onPointerUp={(
+              event
+            ) => {
               event.stopPropagation();
+
               stopListening();
             }}
-            onPointerCancel={(event) => {
+            onPointerCancel={(
+              event
+            ) => {
               event.stopPropagation();
+
               stopListening();
             }}
           >
             <span
-              style={styles.buttonIcon}
+              style={
+                styles.buttonIcon
+              }
               aria-hidden="true"
             >
               {listening
@@ -1196,7 +1628,9 @@ If something important is uncertain or outside the camera view, say so briefly.
 
             <span>
               <span
-                style={styles.buttonTitle}
+                style={
+                  styles.buttonTitle
+                }
               >
                 {listening
                   ? "Release When Finished"
@@ -1212,43 +1646,60 @@ If something important is uncertain or outside the camera view, say so briefly.
                       styles.buttonHelp
                     }
                   >
-                    Or hold Space
+                    Or hold
+                    Space
                   </span>
                 )}
             </span>
           </button>
         ) : (
           <form
-            style={styles.manualForm}
+            style={
+              styles.manualForm
+            }
             onSubmit={
               handleManualSubmit
             }
           >
             <label
               htmlFor="question"
-              style={styles.manualLabel}
+              style={
+                styles.manualLabel
+              }
             >
-              Ask what&apos;s around you
+              Ask what&apos;s
+              around you
             </label>
 
             <div
-              style={styles.manualRow}
+              style={
+                styles.manualRow
+              }
             >
               <input
                 id="question"
-                value={manualText}
-                onChange={(event) =>
+                value={
+                  manualText
+                }
+                onChange={(
+                  event
+                ) =>
                   setManualText(
-                    event.target.value
+                    event.target
+                      .value
                   )
                 }
                 placeholder="What is in front of me?"
-                style={styles.input}
+                style={
+                  styles.input
+                }
               />
 
               <button
                 type="submit"
-                style={styles.smallButton}
+                style={
+                  styles.smallButton
+                }
               >
                 Ask
               </button>
@@ -1256,14 +1707,16 @@ If something important is uncertain or outside the camera view, say so briefly.
           </form>
         )}
 
-        {/* OPTIONAL VISUAL CONTROLS */}
-
         <div
-          style={styles.quickActions}
+          style={
+            styles.quickActions
+          }
         >
           <button
             type="button"
-            onClick={describeScene}
+            onClick={
+              describeScene
+            }
             disabled={
               thinking ||
               !cameraReady
@@ -1293,7 +1746,8 @@ If something important is uncertain or outside the camera view, say so briefly.
                   styles.secondaryTitle
                 }
               >
-                Describe Scene
+                Describe
+                Scene
               </strong>
 
               <span
@@ -1301,14 +1755,17 @@ If something important is uncertain or outside the camera view, say so briefly.
                   styles.secondaryHelp
                 }
               >
-                Say “describe scene”
+                Say “describe
+                scene”
               </span>
             </span>
           </button>
 
           <button
             type="button"
-            onClick={repeatAnswer}
+            onClick={
+              repeatAnswer
+            }
             disabled={
               !answer ||
               thinking
@@ -1354,15 +1811,24 @@ If something important is uncertain or outside the camera view, say so briefly.
 
         <button
           type="button"
-          onClick={playHelp}
-          style={styles.helpButton}
+          onClick={
+            playHelp
+          }
+          style={
+            styles.helpButton
+          }
           aria-label="Hear instructions. You can also hold and say help."
         >
           🔊 Hear Instructions
         </button>
 
-        <p style={styles.voiceHint}>
-          Say “describe scene” • “repeat” • “help”
+        <p
+          style={
+            styles.voiceHint
+          }
+        >
+          Say “describe scene” •
+          “repeat” • “help”
         </p>
       </section>
     </main>
@@ -1383,7 +1849,8 @@ const styles = {
 
     overflow: "hidden",
 
-    backgroundColor: "#000",
+    backgroundColor:
+      "#000",
 
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif",
@@ -1403,7 +1870,8 @@ const styles = {
 
     objectFit: "cover",
 
-    pointerEvents: "none",
+    pointerEvents:
+      "none",
   },
 
   gradient: {
@@ -1414,7 +1882,8 @@ const styles = {
     background:
       "linear-gradient(to bottom, rgba(0,0,0,.84) 0%, rgba(0,0,0,.28) 35%, rgba(0,0,0,.32) 53%, rgba(0,0,0,.98) 100%)",
 
-    pointerEvents: "none",
+    pointerEvents:
+      "none",
   },
 
   header: {
@@ -1428,16 +1897,19 @@ const styles = {
 
     display: "flex",
 
-    alignItems: "flex-start",
+    alignItems:
+      "flex-start",
 
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
 
     gap: "12px",
 
     padding:
       "max(22px, env(safe-area-inset-top)) 20px 20px",
 
-    pointerEvents: "none",
+    pointerEvents:
+      "none",
   },
 
   logo: {
@@ -1452,7 +1924,8 @@ const styles = {
 
     lineHeight: 1,
 
-    letterSpacing: "-1.4px",
+    letterSpacing:
+      "-1.4px",
 
     textShadow:
       "0 3px 20px rgba(0,0,0,.55)",
@@ -1472,12 +1945,14 @@ const styles = {
   demoBadge: {
     flexShrink: 0,
 
-    padding: "8px 11px",
+    padding:
+      "8px 11px",
 
     border:
       "2px solid rgba(255,255,255,.7)",
 
-    borderRadius: "999px",
+    borderRadius:
+      "999px",
 
     backgroundColor:
       "rgba(0,0,0,.7)",
@@ -1488,7 +1963,8 @@ const styles = {
 
     fontWeight: 900,
 
-    letterSpacing: "1px",
+    letterSpacing:
+      "1px",
   },
 
   centerStatus: {
@@ -1500,20 +1976,24 @@ const styles = {
 
     left: "50%",
 
-    width: "min(88vw, 460px)",
+    width:
+      "min(88vw, 460px)",
 
     transform:
       "translateX(-50%)",
 
     display: "flex",
 
-    flexDirection: "column",
+    flexDirection:
+      "column",
 
-    alignItems: "center",
+    alignItems:
+      "center",
 
     textAlign: "center",
 
-    pointerEvents: "none",
+    pointerEvents:
+      "none",
   },
 
   statusCircle: {
@@ -1523,13 +2003,17 @@ const styles = {
 
     display: "flex",
 
-    alignItems: "center",
+    alignItems:
+      "center",
 
-    justifyContent: "center",
+    justifyContent:
+      "center",
 
-    border: "3px solid #fff",
+    border:
+      "3px solid #fff",
 
-    borderRadius: "50%",
+    borderRadius:
+      "50%",
 
     backgroundColor:
       "rgba(0,0,0,.75)",
@@ -1545,17 +2029,20 @@ const styles = {
   },
 
   listeningCircle: {
-    transform: "scale(1.08)",
+    transform:
+      "scale(1.08)",
   },
 
   thinkingCircle: {
     fontSize: "16px",
 
-    letterSpacing: "3px",
+    letterSpacing:
+      "3px",
   },
 
   statusTitle: {
-    margin: "13px 0 0",
+    margin:
+      "13px 0 0",
 
     color: "#fff",
 
@@ -1564,16 +2051,19 @@ const styles = {
 
     fontWeight: 900,
 
-    letterSpacing: "-.8px",
+    letterSpacing:
+      "-.8px",
 
     textShadow:
       "0 3px 18px rgba(0,0,0,.7)",
   },
 
   statusMessage: {
-    maxWidth: "350px",
+    maxWidth:
+      "350px",
 
-    margin: "7px 0 0",
+    margin:
+      "7px 0 0",
 
     color:
       "rgba(255,255,255,.95)",
@@ -1599,9 +2089,11 @@ const styles = {
 
     display: "flex",
 
-    flexDirection: "column",
+    flexDirection:
+      "column",
 
-    alignItems: "center",
+    alignItems:
+      "center",
 
     gap: "9px",
 
@@ -1612,30 +2104,37 @@ const styles = {
   answerCard: {
     width: "100%",
 
-    maxWidth: "560px",
+    maxWidth:
+      "560px",
 
-    boxSizing: "border-box",
+    boxSizing:
+      "border-box",
 
-    padding: "16px 18px",
+    padding:
+      "16px 18px",
 
     border:
       "2px solid rgba(255,255,255,.45)",
 
-    borderRadius: "20px",
+    borderRadius:
+      "20px",
 
     backgroundColor:
       "rgba(0,0,0,.9)",
 
-    backdropFilter: "blur(18px)",
+    backdropFilter:
+      "blur(18px)",
 
     boxShadow:
       "0 12px 35px rgba(0,0,0,.4)",
 
-    pointerEvents: "none",
+    pointerEvents:
+      "none",
   },
 
   questionText: {
-    margin: "0 0 7px",
+    margin:
+      "0 0 7px",
 
     color:
       "rgba(255,255,255,.72)",
@@ -1659,54 +2158,69 @@ const styles = {
 
     lineHeight: 1.28,
 
-    letterSpacing: "-.2px",
+    letterSpacing:
+      "-.2px",
   },
 
   mainButton: {
     width: "100%",
 
-    maxWidth: "560px",
+    maxWidth:
+      "560px",
 
-    minHeight: "94px",
+    minHeight:
+      "94px",
 
     display: "flex",
 
-    alignItems: "center",
+    alignItems:
+      "center",
 
-    justifyContent: "center",
+    justifyContent:
+      "center",
 
     gap: "16px",
 
-    boxSizing: "border-box",
+    boxSizing:
+      "border-box",
 
-    padding: "16px 22px",
+    padding:
+      "16px 22px",
 
-    border: "4px solid #fff",
+    border:
+      "4px solid #fff",
 
-    borderRadius: "25px",
+    borderRadius:
+      "25px",
 
-    backgroundColor: "#fff",
+    backgroundColor:
+      "#fff",
 
     color: "#000",
 
     cursor: "pointer",
 
-    userSelect: "none",
+    userSelect:
+      "none",
 
-    WebkitUserSelect: "none",
+    WebkitUserSelect:
+      "none",
 
-    touchAction: "none",
+    touchAction:
+      "none",
 
     boxShadow:
       "0 14px 38px rgba(0,0,0,.45)",
   },
 
   mainButtonActive: {
-    backgroundColor: "#111",
+    backgroundColor:
+      "#111",
 
     color: "#fff",
 
-    transform: "scale(.985)",
+    transform:
+      "scale(.985)",
   },
 
   buttonIcon: {
@@ -1718,13 +2232,17 @@ const styles = {
 
     display: "flex",
 
-    alignItems: "center",
+    alignItems:
+      "center",
 
-    justifyContent: "center",
+    justifyContent:
+      "center",
 
-    borderRadius: "50%",
+    borderRadius:
+      "50%",
 
-    backgroundColor: "#111",
+    backgroundColor:
+      "#111",
 
     color: "#fff",
 
@@ -1760,7 +2278,8 @@ const styles = {
   quickActions: {
     width: "100%",
 
-    maxWidth: "560px",
+    maxWidth:
+      "560px",
 
     display: "grid",
 
@@ -1771,22 +2290,27 @@ const styles = {
   },
 
   secondaryButton: {
-    minHeight: "68px",
+    minHeight:
+      "68px",
 
     display: "flex",
 
-    alignItems: "center",
+    alignItems:
+      "center",
 
-    justifyContent: "flex-start",
+    justifyContent:
+      "flex-start",
 
     gap: "10px",
 
-    padding: "10px 13px",
+    padding:
+      "10px 13px",
 
     border:
       "2px solid rgba(255,255,255,.55)",
 
-    borderRadius: "17px",
+    borderRadius:
+      "17px",
 
     backgroundColor:
       "rgba(10,10,10,.92)",
@@ -1828,14 +2352,17 @@ const styles = {
   },
 
   helpButton: {
-    minHeight: "45px",
+    minHeight:
+      "45px",
 
-    padding: "8px 18px",
+    padding:
+      "8px 18px",
 
     border:
       "2px solid rgba(255,255,255,.5)",
 
-    borderRadius: "999px",
+    borderRadius:
+      "999px",
 
     backgroundColor:
       "rgba(0,0,0,.84)",
@@ -1861,7 +2388,8 @@ const styles = {
 
     textAlign: "center",
 
-    pointerEvents: "none",
+    pointerEvents:
+      "none",
   },
 
   disabled: {
@@ -1873,16 +2401,19 @@ const styles = {
   manualForm: {
     width: "100%",
 
-    maxWidth: "560px",
+    maxWidth:
+      "560px",
 
-    boxSizing: "border-box",
+    boxSizing:
+      "border-box",
 
     padding: "15px",
 
     border:
       "2px solid rgba(255,255,255,.5)",
 
-    borderRadius: "19px",
+    borderRadius:
+      "19px",
 
     backgroundColor:
       "rgba(0,0,0,.9)",
@@ -1891,7 +2422,8 @@ const styles = {
   manualLabel: {
     display: "block",
 
-    marginBottom: "9px",
+    marginBottom:
+      "9px",
 
     color: "#fff",
 
@@ -1913,11 +2445,14 @@ const styles = {
 
     padding: "15px",
 
-    border: "2px solid #fff",
+    border:
+      "2px solid #fff",
 
-    borderRadius: "12px",
+    borderRadius:
+      "12px",
 
-    backgroundColor: "#111",
+    backgroundColor:
+      "#111",
 
     color: "#fff",
 
@@ -1925,13 +2460,16 @@ const styles = {
   },
 
   smallButton: {
-    minWidth: "74px",
+    minWidth:
+      "74px",
 
     border: 0,
 
-    borderRadius: "12px",
+    borderRadius:
+      "12px",
 
-    backgroundColor: "#fff",
+    backgroundColor:
+      "#fff",
 
     color: "#000",
 
