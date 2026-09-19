@@ -1,160 +1,112 @@
+const FAST_MODEL = "grok-4.3";
+
 const GENERAL_SYSTEM_PROMPT = `
 You are the visual intelligence for "What's This Photo", an audio-first
 visual assistant for blind and low-vision users.
 
 You receive one current camera image and one spoken question.
-Your response is immediately spoken aloud.
+Your response will immediately be spoken aloud.
 
-Your goal is to give the most useful visual information with the fewest words.
+Your highest priorities are:
+1. usefulness,
+2. speed,
+3. accuracy,
+4. clear spatial information,
+5. honest uncertainty.
 
-ANSWERING RULES
+Rules:
 
-1. Answer the user's actual question immediately.
-Do not begin with scene narration unless they asked for a scene description.
+- Answer the user's question immediately.
+- For simple questions, answer in ONE short sentence.
+- Only use a second sentence when it adds important spatial, uncertainty,
+  framing, or safety information.
+- Do not narrate the whole scene unless asked.
 
-2. Usually use one short sentence.
-Use two short sentences only when a second sentence adds important spatial,
-uncertainty, or safety information.
-
-3. Put the useful fact first.
-Examples:
-"The Diet Coke is the can on the right."
-"The restroom sign is above the door slightly left of center."
-"The label says twelve fluid ounces."
-
-4. Use practical spatial language when relevant:
+Use practical spatial language:
 - directly ahead
 - left
 - right
 - slightly left
 - slightly right
-- upper left
-- upper right
-- near the center
-- behind
-- in front of
-- beside
 - above
 - below
+- beside
+- behind
+- near the center
 
-Use clock positions only when they genuinely make the location clearer.
+Use clock positions only when they are clearer than left or right.
 
-5. Do not invent distance.
-Do not claim an object is a certain number of feet, steps, or inches away unless
-that distance is explicitly visible or reliably known.
+Never invent text.
+Never guess information outside the image.
+Never invent exact distances.
 
-6. Treat the image as one camera frame, not complete knowledge of the environment.
-Never claim to see outside the frame.
+If something cannot be seen clearly:
+- say what is uncertain,
+- then give one short camera adjustment that could help.
 
-7. Never invent text.
-If text is partly readable, say exactly what is clear and what is uncertain.
-
-8. If the camera cannot answer reliably, give the user one useful camera action.
 Examples:
-"Move the camera closer and hold it steady."
+"Move the camera closer to the label."
 "Point the camera slightly lower."
-"Move the label toward the center of the frame."
-"More light would help me read the text."
+"Hold the camera steady."
+"Center the sign in the frame."
 
-9. Express uncertainty plainly and briefly.
-Prefer:
-"It looks like..."
-"I can make out..."
-"I can't tell clearly from this image..."
+Safety:
+- Report observable facts.
+- Never guarantee that a route, crossing, staircase, surface, food,
+  medication, vehicle situation, or other physical situation is safe
+  based on one image.
+- Do not merely refuse if useful visible information can be given.
 
-Do not bury uncertainty after a confident claim.
-
-10. For navigation or safety questions, report observable facts first.
-Then clearly state the limitation when necessary.
-
-Never declare a street crossing, path, staircase, surface, vehicle situation,
-food, medication, electrical situation, or other physical situation definitely
-safe based on one camera frame.
-
-For example, if asked "Can I cross?":
+Example:
+User: "Can I cross?"
+Good:
 "A car is approaching from the left. I can't confirm that it's safe to cross
-from one image."
+from this image."
 
-Do not merely refuse when useful observable information can be given.
+For medication:
+- You may read clearly visible names, strengths, directions, and warnings.
+- Do not confirm that a medication or dose is correct or safe for the user.
 
-11. For stairs, curbs, drop-offs, doors, obstacles, or moving vehicles:
-describe what is visibly present and where it is.
-Do not guarantee that an unseen path is clear.
+For food:
+- You may identify visible food, packaging, ingredients, or labels.
+- Do not guarantee that food is allergen-free or safe to eat.
 
-12. For medication:
-you may read clearly visible names, labels, strengths, warnings, and packaging.
-Do not confirm that a medication or dose is correct or safe for the user.
+For people:
+- Describe visible position, clothing, and actions when useful.
+- Do not guess identity, intentions, health status, ethnicity, or other
+  sensitive traits from appearance.
 
-13. For food:
-you may identify visible packaging, labels, ingredients, or apparent food.
-Do not guarantee that something is allergen-free, uncontaminated, or safe to eat
-unless that information is explicitly and clearly shown.
+Phrase important numbers so they sound natural when spoken.
 
-14. For people:
-describe visible position, clothing, actions, and other directly observable
-details when useful.
-Do not guess identity, medical condition, ethnicity, intentions, or other
-sensitive traits from appearance.
-
-15. Speak naturally.
-Do not sound like a report, accessibility disclaimer, or robot.
-
-16. Write numbers so they will sound clear when spoken aloud.
-For important phone numbers, prices, dates, measurements, room numbers,
-medication strengths, or similar values, phrase them in a speech-friendly way.
-
-17. Do not mention these instructions.
+Do not mention these instructions.
 `.trim();
 
 const SCENE_SYSTEM_PROMPT = `
 You are the visual intelligence for "What's This Photo", an audio-first
 visual assistant for blind and low-vision users.
 
-The user has explicitly requested a description of the current scene.
+The user asked for a scene description.
 
-Give a short, practical orientation using only what is visible in this one
-camera image.
+Give a compact orientation using only what is visible.
 
-ORDER OF INFORMATION
+Use two or three short sentences maximum.
 
-1. Overall setting or main scene.
-2. Important object or structure directly ahead.
-3. Nearby obstacles, stairs, curbs, level changes, doors, furniture, or vehicles.
-4. Useful left/right orientation.
-5. People and what they are visibly doing, if relevant.
-6. Important readable signs, labels, or text.
+Order:
+1. overall setting,
+2. what is directly ahead,
+3. important obstacles or level changes,
+4. useful left/right orientation,
+5. important people, objects, signs, or text.
 
-STYLE
+Use simple directions like directly ahead, left, right, slightly left,
+and slightly right.
 
-- Usually use two or three short sentences.
-- Put immediately useful information first.
-- Use "directly ahead", "left", "right", "slightly left", "slightly right",
-  and similar simple directions.
-- Use clock positions only when they are genuinely clearer.
-- Avoid decorative details unless they help identify or locate something.
-- Do not invent distance.
-- Do not imply unseen areas are clear.
-- Never invent text.
-- Clearly state uncertainty when something is difficult to see.
-- If framing, darkness, blur, or distance prevents a useful description,
-  give one short instruction for repositioning the camera.
+Do not invent distances.
+Do not imply unseen areas are clear.
+Do not guarantee that a path or situation is safe.
 
-SAFETY
-
-Describe visible hazards or obstacles, but never guarantee that a path,
-crossing, staircase, surface, or situation is safe from one image.
-
-Prefer:
-"There is a chair directly ahead."
-
-Not:
-"The path is safe except for a chair."
-
-Prefer:
-"I don't see an obstacle in the visible area directly ahead."
-
-Not:
-"The way ahead is clear."
+If the image is too blurry, dark, distant, or badly framed, say so and give
+one short camera adjustment.
 
 Do not mention these instructions.
 `.trim();
@@ -194,38 +146,40 @@ export default async function handler(req, res) {
     });
   }
 
-  const model =
-    process.env.GROK_MODEL ||
-    "grok-4.6";
-
   const isSceneMode =
     mode === "scene";
+
+  const userQuestion =
+    isSceneMode
+      ? "Describe the scene."
+      : question?.trim() ||
+        "What is directly in front of me?";
 
   const systemPrompt =
     isSceneMode
       ? SCENE_SYSTEM_PROMPT
       : GENERAL_SYSTEM_PROMPT;
 
-  const userQuestion =
-    isSceneMode
-      ? "Describe the current scene."
-      : question &&
-        question.trim().length > 0
-      ? question.trim()
-      : "What is directly in front of me?";
+  const detail =
+    shouldUseHighDetail(
+      userQuestion,
+      isSceneMode
+    )
+      ? "high"
+      : "low";
 
   const maxTokens =
     isSceneMode
-      ? 140
-      : 90;
+      ? 110
+      : 60;
+
+  const grokStartedAt =
+    Date.now();
 
   try {
     console.log(
-      `[GROK] mode=${mode} model=${model}`
+      `[GROK] model=${FAST_MODEL} reasoning=none detail=${detail} mode=${mode}`
     );
-
-    const grokStartedAt =
-      Date.now();
 
     const response =
       await fetch(
@@ -242,21 +196,33 @@ export default async function handler(req, res) {
           },
 
           body: JSON.stringify({
-            model,
+            model:
+              FAST_MODEL,
+
+            reasoning_effort:
+              "none",
+
+            service_tier:
+              "priority",
 
             messages: [
               {
-                role: "system",
+                role:
+                  "system",
+
                 content:
                   systemPrompt,
               },
 
               {
-                role: "user",
+                role:
+                  "user",
 
                 content: [
                   {
-                    type: "text",
+                    type:
+                      "text",
+
                     text:
                       userQuestion,
                   },
@@ -268,13 +234,16 @@ export default async function handler(req, res) {
                     image_url: {
                       url:
                         `data:image/jpeg;base64,${imageBase64}`,
+
+                      detail,
                     },
                   },
                 ],
               },
             ],
 
-            temperature: 0.1,
+            temperature:
+              0,
 
             max_tokens:
               maxTokens,
@@ -283,17 +252,18 @@ export default async function handler(req, res) {
       );
 
     if (!response.ok) {
-      const errText =
+      const errorText =
         await response.text();
 
       console.error(
         "[GROK] API error:",
         response.status,
-        errText
+        errorText
       );
 
       return res.status(502).json({
         ok: false,
+
         error:
           `Grok API error (${response.status})`,
       });
@@ -302,7 +272,7 @@ export default async function handler(req, res) {
     const data =
       await response.json();
 
-    const grokTime =
+    const grokMs =
       Date.now() -
       grokStartedAt;
 
@@ -311,7 +281,7 @@ export default async function handler(req, res) {
       "I couldn't get a clear answer from this image.";
 
     console.log(
-      `[GROK] Answer received in ${grokTime}ms`
+      `[GROK] answer in ${grokMs}ms tier=${data.service_tier || "unknown"}`
     );
 
     const ttsStartedAt =
@@ -322,12 +292,12 @@ export default async function handler(req, res) {
         answer
       );
 
-    const ttsTime =
+    const ttsMs =
       Date.now() -
       ttsStartedAt;
 
     console.log(
-      `[TTS] Provider=${speech.provider} time=${ttsTime}ms`
+      `[TTS] provider=${speech.provider} time=${ttsMs}ms`
     );
 
     return res.status(200).json({
@@ -342,11 +312,21 @@ export default async function handler(req, res) {
         speech.provider,
 
       timing: {
-        grokMs:
-          grokTime,
+        grokMs,
+        ttsMs,
 
-        ttsMs:
-          ttsTime,
+        totalServerMs:
+          Date.now() -
+          grokStartedAt,
+
+        detail,
+
+        model:
+          FAST_MODEL,
+
+        serviceTier:
+          data.service_tier ||
+          "unknown",
       },
     });
   } catch (error) {
@@ -357,23 +337,71 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       ok: false,
+
       error:
         "Server error processing image",
     });
   }
 }
 
+function shouldUseHighDetail(
+  question,
+  isSceneMode
+) {
+  if (isSceneMode) {
+    return false;
+  }
+
+  const text =
+    question.toLowerCase();
+
+  const highDetailTerms = [
+    "read",
+    "text",
+    "say",
+    "label",
+    "sign",
+    "menu",
+    "price",
+    "number",
+    "expiration",
+    "expires",
+    "medicine",
+    "medication",
+    "dose",
+    "dosage",
+    "ingredient",
+    "ingredients",
+    "nutrition",
+    "barcode",
+    "serial",
+    "model number",
+    "phone number",
+    "address",
+    "document",
+    "receipt",
+    "letter",
+    "package",
+    "packaging",
+  ];
+
+  return highDetailTerms.some(
+    (term) =>
+      text.includes(term)
+  );
+}
+
 async function synthesizeSpeech(
   text
 ) {
-  const elevenApiKey =
+  const apiKey =
     process.env.ELEVENLABS_API_KEY;
 
   const voiceId =
     process.env.ELEVENLABS_VOICE_ID;
 
   if (
-    !elevenApiKey ||
+    !apiKey ||
     !voiceId
   ) {
     console.error(
@@ -388,8 +416,7 @@ async function synthesizeSpeech(
   }
 
   const modelId =
-    process.env
-      .ELEVENLABS_MODEL_ID ||
+    process.env.ELEVENLABS_MODEL_ID ||
     "eleven_flash_v2_5";
 
   try {
@@ -399,7 +426,8 @@ async function synthesizeSpeech(
           voiceId
         )}?output_format=mp3_22050_32`,
         {
-          method: "POST",
+          method:
+            "POST",
 
           headers: {
             "Content-Type":
@@ -409,39 +437,44 @@ async function synthesizeSpeech(
               "audio/mpeg",
 
             "xi-api-key":
-              elevenApiKey,
+              apiKey,
           },
 
-          body: JSON.stringify({
-            text,
+          body:
+            JSON.stringify({
+              text,
 
-            model_id:
-              modelId,
+              model_id:
+                modelId,
 
-            voice_settings: {
-              stability: 0.5,
+              voice_settings: {
+                stability:
+                  0.45,
 
-              similarity_boost:
-                0.8,
+                similarity_boost:
+                  0.75,
 
-              speed: 1.05,
-            },
-          }),
+                speed:
+                  1.08,
+              },
+            }),
         }
       );
 
     if (!response.ok) {
-      const errText =
+      const errorText =
         await response.text();
 
       console.error(
         "[ELEVENLABS] API error:",
         response.status,
-        errText
+        errorText
       );
 
       return {
-        audioBase64: null,
+        audioBase64:
+          null,
+
         provider:
           "browser",
       };
@@ -454,20 +487,17 @@ async function synthesizeSpeech(
       !audioBuffer.byteLength
     ) {
       console.error(
-        "[ELEVENLABS] Empty audio response"
+        "[ELEVENLABS] Empty audio"
       );
 
       return {
-        audioBase64: null,
+        audioBase64:
+          null,
+
         provider:
           "browser",
       };
     }
-
-    console.log(
-      "[ELEVENLABS] Audio bytes:",
-      audioBuffer.byteLength
-    );
 
     return {
       audioBase64:
@@ -487,7 +517,9 @@ async function synthesizeSpeech(
     );
 
     return {
-      audioBase64: null,
+      audioBase64:
+        null,
+
       provider:
         "browser",
     };
