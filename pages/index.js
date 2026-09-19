@@ -5,35 +5,20 @@ import {
 } from "react";
 
 export default function Home() {
-  const videoRef =
-    useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const currentAudioRef = useRef(null);
+  const audioContextRef = useRef(null);
 
-  const canvasRef =
-    useRef(null);
+  const listeningRef = useRef(false);
+  const thinkingRef = useRef(false);
+  const cameraReadyRef = useRef(false);
+  const audioUnlockedRef = useRef(false);
 
-  const recognitionRef =
-    useRef(null);
-
-  const currentAudioRef =
-    useRef(null);
-
-  const audioContextRef =
-    useRef(null);
-
-  const listeningRef =
-    useRef(false);
-
-  const thinkingRef =
-    useRef(false);
-
-  const cameraReadyRef =
-    useRef(false);
-
-  const audioUnlockedRef =
-    useRef(false);
-
-  const speechCacheRef =
-    useRef(new Map());
+  const speechCacheRef = useRef(
+    new Map()
+  );
 
   const [
     cameraReady,
@@ -97,6 +82,10 @@ export default function Home() {
       cameraReady;
   }, [cameraReady]);
 
+  // ============================================================
+  // AUDIO
+  // ============================================================
+
   async function getAudioContext() {
     if (
       typeof window ===
@@ -158,9 +147,7 @@ export default function Home() {
       const gain =
         context.createGain();
 
-      oscillator.connect(
-        gain
-      );
+      oscillator.connect(gain);
 
       gain.connect(
         context.destination
@@ -315,9 +302,7 @@ export default function Home() {
     }
   }
 
-  function browserSpeak(
-    text
-  ) {
+  function browserSpeak(text) {
     if (
       !text ||
       typeof window ===
@@ -338,7 +323,6 @@ export default function Home() {
       1.05;
 
     utterance.pitch = 1;
-
     utterance.volume = 1;
 
     window.speechSynthesis.speak(
@@ -369,21 +353,19 @@ export default function Home() {
       currentAudioRef.current =
         audio;
 
-      audio.onended =
-        () => {
-          currentAudioRef.current =
-            null;
-        };
+      audio.onended = () => {
+        currentAudioRef.current =
+          null;
+      };
 
-      audio.onerror =
-        () => {
-          currentAudioRef.current =
-            null;
+      audio.onerror = () => {
+        currentAudioRef.current =
+          null;
 
-          browserSpeak(
-            fallbackText
-          );
-        };
+        browserSpeak(
+          fallbackText
+        );
+      };
 
       audio
         .play()
@@ -414,9 +396,7 @@ export default function Home() {
     }
   }
 
-  async function speak(
-    text
-  ) {
+  async function speak(text) {
     if (!text) {
       return;
     }
@@ -488,25 +468,36 @@ export default function Home() {
     }
   }
 
+  // ============================================================
+  // INTRO / INSTRUCTIONS
+  // ============================================================
+
   function speakWelcome() {
     speak(
-      "What's This Photo. " +
-        "Hold anywhere and ask what you want to know. " +
-        "Release when you're finished. " +
-        "You can also say describe scene, repeat, or repeat instructions."
+      "What's This Camera. " +
+        "Press the camera button and ask a question now. " +
+        "On the website, hold anywhere to ask. " +
+        "Say repeat instructions anytime."
     );
   }
 
   function playInstructions() {
     speak(
-      "Hold anywhere on the screen, or hold the space bar, while you ask a question. " +
-        "Release when you're finished speaking. " +
-        "Ask naturally about anything the camera can see. " +
-        "Say describe scene for an overview of your surroundings. " +
+      "What's This Camera helps you understand what the camera sees. " +
+        "On the camera device, hold the camera button while you ask a question, then release. " +
+        "Press and release without asking a question for an automatic description. " +
+        "On the website, hold anywhere on the screen, or hold the space bar, while you ask a question, then release. " +
+        "You can also use the Take Photo button without speaking. " +
+        "Say describe scene for an overview. " +
         "Say repeat to hear the last answer again. " +
-        "Say repeat instructions to hear these instructions again."
+        "Say repeat instructions to hear these instructions again. " +
+        "Camera answers can be wrong, so use your own judgment for safety-critical decisions."
     );
   }
+
+  // ============================================================
+  // CAMERA
+  // ============================================================
 
   useEffect(() => {
     let stream;
@@ -594,6 +585,10 @@ export default function Home() {
       }
     };
   }, []);
+
+  // ============================================================
+  // IMAGE CAPTURE
+  // ============================================================
 
   function capturePhotoBase64() {
     const video =
@@ -690,10 +685,13 @@ export default function Home() {
     )[1];
   }
 
+  // ============================================================
+  // AI REQUEST
+  // ============================================================
+
   async function askAboutImage(
-    question,
-    displayQuestion =
-      question,
+    question = "",
+    displayQuestion = "",
     mode = "question"
   ) {
     if (
@@ -716,7 +714,7 @@ export default function Home() {
         speak(
           "I couldn't capture an image. Try again."
         );
-      }, 650);
+      }, 500);
 
       return;
     }
@@ -823,7 +821,7 @@ export default function Home() {
             responseText
           );
         }
-      }, 220);
+      }, 180);
     } catch (error) {
       console.error(
         "Ask error:",
@@ -840,7 +838,7 @@ export default function Home() {
         speak(
           "Something went wrong. Try again."
         );
-      }, 450);
+      }, 400);
     } finally {
       thinkingRef.current =
         false;
@@ -848,6 +846,72 @@ export default function Home() {
       setThinking(false);
     }
   }
+
+  // ============================================================
+  // QUESTION CONFIRMATION
+  // ============================================================
+
+  function submitRecognizedQuestion(
+    question
+  ) {
+    const cleanQuestion =
+      question?.trim();
+
+    if (!cleanQuestion) {
+      submitImageOnly();
+
+      return;
+    }
+
+    setTranscript(
+      cleanQuestion
+    );
+
+    setStatus(
+      "Question heard"
+    );
+
+    speak(
+      `Heard: ${cleanQuestion}`
+    );
+
+    askAboutImage(
+      cleanQuestion,
+      cleanQuestion,
+      "question"
+    );
+  }
+
+  function submitImageOnly() {
+    if (
+      thinkingRef.current ||
+      !cameraReadyRef.current
+    ) {
+      return;
+    }
+
+    setTranscript(
+      "No question — automatic description"
+    );
+
+    setStatus(
+      "Describing"
+    );
+
+    speak(
+      "No question heard. Describing."
+    );
+
+    askAboutImage(
+      "",
+      "Automatic description",
+      "image-only"
+    );
+  }
+
+  // ============================================================
+  // SCENE DESCRIPTION
+  // ============================================================
 
   function describeScene() {
     if (
@@ -859,12 +923,20 @@ export default function Home() {
 
     stopCurrentAudio();
 
+    setTranscript(
+      "Describe scene"
+    );
+
     askAboutImage(
-      "Describe the scene.",
-      "Describe what's around me.",
+      "",
+      "Describe scene",
       "scene"
     );
   }
+
+  // ============================================================
+  // REPEAT
+  // ============================================================
 
   function repeatAnswer() {
     if (!answer) {
@@ -874,7 +946,7 @@ export default function Home() {
         speak(
           "There isn't a previous answer yet."
         );
-      }, 600);
+      }, 500);
 
       return;
     }
@@ -890,6 +962,10 @@ export default function Home() {
       speak(answer);
     }
   }
+
+  // ============================================================
+  // VOICE COMMANDS
+  // ============================================================
 
   function normalizeCommand(
     value
@@ -914,17 +990,7 @@ export default function Home() {
       rawQuestion?.trim();
 
     if (!question) {
-      setStatus(
-        "No speech detected"
-      );
-
-      failureCue();
-
-      setTimeout(() => {
-        speak(
-          "I didn't hear anything. Try again."
-        );
-      }, 650);
+      submitImageOnly();
 
       return;
     }
@@ -1002,12 +1068,14 @@ export default function Home() {
       return;
     }
 
-    askAboutImage(
-      question,
-      question,
-      "question"
+    submitRecognizedQuestion(
+      question
     );
   }
+
+  // ============================================================
+  // SPEECH RECOGNITION
+  // ============================================================
 
   useEffect(() => {
     if (
@@ -1104,17 +1172,7 @@ export default function Home() {
           event.error ===
           "no-speech"
         ) {
-          setStatus(
-            "No speech detected"
-          );
-
-          failureCue();
-
-          setTimeout(() => {
-            speak(
-              "I didn't hear anything. Try again."
-            );
-          }, 600);
+          submitImageOnly();
 
           return;
         }
@@ -1131,9 +1189,9 @@ export default function Home() {
 
           setTimeout(() => {
             speak(
-              "Microphone access is off. Please allow microphone access."
+              "Microphone access is off. You can still use Take Photo."
             );
-          }, 450);
+          }, 400);
 
           return;
         }
@@ -1150,9 +1208,9 @@ export default function Home() {
 
           setTimeout(() => {
             speak(
-              "I can't access the microphone."
+              "I can't access the microphone. You can still use Take Photo."
             );
-          }, 450);
+          }, 400);
 
           return;
         }
@@ -1165,9 +1223,9 @@ export default function Home() {
 
         setTimeout(() => {
           speak(
-            "I couldn't hear your question. Try again."
+            "I couldn't understand the microphone input. Try again, or use Take Photo."
           );
-        }, 450);
+        }, 400);
       };
 
     recognition.onend =
@@ -1193,6 +1251,10 @@ export default function Home() {
     lastAudioBase64,
   ]);
 
+  // ============================================================
+  // START / STOP LISTENING
+  // ============================================================
+
   async function startListening() {
     await getAudioContext();
 
@@ -1216,7 +1278,7 @@ export default function Home() {
         speak(
           "The camera is still starting."
         );
-      }, 400);
+      }, 350);
 
       return;
     }
@@ -1228,9 +1290,9 @@ export default function Home() {
 
       setTimeout(() => {
         speak(
-          "Voice recognition isn't available in this browser."
+          "Voice recognition isn't available. Use Take Photo instead."
         );
-      }, 400);
+      }, 350);
 
       return;
     }
@@ -1279,9 +1341,9 @@ export default function Home() {
 
       setTimeout(() => {
         speak(
-          "I couldn't start listening. Try again."
+          "I couldn't start listening. Try again, or use Take Photo."
         );
-      }, 400);
+      }, 350);
     }
   }
 
@@ -1294,7 +1356,7 @@ export default function Home() {
     }
 
     setStatus(
-      "Processing question"
+      "Processing"
     );
 
     submittedCue();
@@ -1326,9 +1388,13 @@ export default function Home() {
         speak(
           "Something went wrong. Try again."
         );
-      }, 400);
+      }, 350);
     }
   }
+
+  // ============================================================
+  // SPACE BAR
+  // ============================================================
 
   useEffect(() => {
     function keyDown(
@@ -1397,6 +1463,10 @@ export default function Home() {
     };
   });
 
+  // ============================================================
+  // MANUAL TEXT
+  // ============================================================
+
   function handleManualSubmit(
     event
   ) {
@@ -1418,6 +1488,10 @@ export default function Home() {
       question
     );
   }
+
+  // ============================================================
+  // FULL SCREEN HOLD
+  // ============================================================
 
   function isInteractiveElement(
     target
@@ -1461,6 +1535,10 @@ export default function Home() {
     stopListening();
   }
 
+  // ============================================================
+  // STATUS
+  // ============================================================
+
   const statusTitle =
     listening
       ? "Listening"
@@ -1472,12 +1550,16 @@ export default function Home() {
 
   const statusMessage =
     listening
-      ? "Speak now. Release when finished."
+      ? "Ask your question. Release when finished."
       : thinking
-      ? "Looking at the image."
+      ? "Checking what the camera sees."
       : cameraReady
-      ? "Hold anywhere and ask a question."
+      ? "Hold to ask, or take a photo without speaking."
       : "Getting the camera ready.";
+
+  // ============================================================
+  // PAGE
+  // ============================================================
 
   return (
     <main
@@ -1532,8 +1614,7 @@ export default function Home() {
               styles.logo
             }
           >
-            What&apos;s This
-            Photo
+            What&apos;s This Camera
           </h1>
 
           <p
@@ -1541,17 +1622,24 @@ export default function Home() {
               styles.tagline
             }
           >
-            Your surroundings,
-            spoken.
+            See what&apos;s around you.
+            Ask naturally.
           </p>
         </div>
 
         <div
           style={
-            styles.demoBadge
+            styles.readyBadge
+          }
+          aria-label={
+            cameraReady
+              ? "Camera ready"
+              : "Camera starting"
           }
         >
-          WEB DEMO
+          {cameraReady
+            ? "CAMERA READY"
+            : "STARTING"}
         </div>
       </header>
 
@@ -1561,6 +1649,7 @@ export default function Home() {
         }
         role="status"
         aria-live="polite"
+        aria-atomic="true"
       >
         <div
           style={{
@@ -1604,7 +1693,7 @@ export default function Home() {
         style={
           styles.controls
         }
-        aria-label="What's This Photo controls"
+        aria-label="What's This Camera controls"
       >
         {answer && (
           <div
@@ -1653,8 +1742,8 @@ export default function Home() {
             }}
             aria-label={
               listening
-                ? "Release to submit your question"
-                : "Hold to ask about what the camera sees"
+                ? "Release when finished asking your question"
+                : "Hold to ask a question"
             }
             onPointerDown={(
               event
@@ -1699,7 +1788,7 @@ export default function Home() {
                   ? "Release When Finished"
                   : thinking
                   ? "Looking..."
-                  : "Hold Anywhere to Ask"}
+                  : "Hold & Ask"}
               </span>
 
               {!listening &&
@@ -1709,7 +1798,7 @@ export default function Home() {
                       styles.buttonHelp
                     }
                   >
-                    Or hold Space
+                    Hold anywhere or Space
                   </span>
                 )}
             </span>
@@ -1729,8 +1818,7 @@ export default function Home() {
                 styles.manualLabel
               }
             >
-              Ask what&apos;s
-              around you
+              Ask about what the camera sees
             </label>
 
             <div
@@ -1768,6 +1856,53 @@ export default function Home() {
             </div>
           </form>
         )}
+
+        <button
+          type="button"
+          onClick={
+            submitImageOnly
+          }
+          disabled={
+            thinking ||
+            !cameraReady
+          }
+          style={{
+            ...styles.photoButton,
+
+            ...((thinking ||
+            !cameraReady)
+              ? styles.disabled
+              : {}),
+          }}
+          aria-label="Take a photo and describe it without asking a question"
+        >
+          <span
+            style={
+              styles.photoIcon
+            }
+            aria-hidden="true"
+          >
+            ◉
+          </span>
+
+          <span>
+            <strong
+              style={
+                styles.photoTitle
+              }
+            >
+              Take Photo
+            </strong>
+
+            <span
+              style={
+                styles.photoHelp
+              }
+            >
+              No question needed
+            </span>
+          </span>
+        </button>
 
         <div
           style={
@@ -1816,8 +1951,7 @@ export default function Home() {
                   styles.secondaryHelp
                 }
               >
-                Say “describe
-                scene”
+                Say “describe scene”
               </span>
             </span>
           </button>
@@ -1876,9 +2010,9 @@ export default function Home() {
             playInstructions
           }
           style={
-            styles.helpButton
+            styles.instructionsButton
           }
-          aria-label="Hear instructions"
+          aria-label="Hear full instructions"
         >
           🔊 Hear Instructions
         </button>
@@ -1897,13 +2031,21 @@ export default function Home() {
   );
 }
 
+// ============================================================
+// STYLES
+// ============================================================
+
 const styles = {
   page: {
     position:
       "relative",
 
-    width: "100vw",
-    height: "100dvh",
+    width:
+      "100vw",
+
+    height:
+      "100dvh",
+
     minHeight:
       "100vh",
 
@@ -1929,8 +2071,11 @@ const styles = {
 
     inset: 0,
 
-    width: "100%",
-    height: "100%",
+    width:
+      "100%",
+
+    height:
+      "100%",
 
     objectFit:
       "cover",
@@ -1946,7 +2091,7 @@ const styles = {
     inset: 0,
 
     background:
-      "linear-gradient(to bottom, rgba(0,0,0,.84) 0%, rgba(0,0,0,.28) 35%, rgba(0,0,0,.32) 53%, rgba(0,0,0,.98) 100%)",
+      "linear-gradient(to bottom, rgba(0,0,0,.88) 0%, rgba(0,0,0,.3) 35%, rgba(0,0,0,.38) 52%, rgba(0,0,0,.98) 100%)",
 
     pointerEvents:
       "none",
@@ -1971,7 +2116,8 @@ const styles = {
     justifyContent:
       "space-between",
 
-    gap: "12px",
+    gap:
+      "12px",
 
     padding:
       "max(22px, env(safe-area-inset-top)) 20px 20px",
@@ -1983,15 +2129,17 @@ const styles = {
   logo: {
     margin: 0,
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
-      "clamp(29px, 7vw, 40px)",
+      "clamp(28px, 7vw, 40px)",
 
     fontWeight:
       900,
 
-    lineHeight: 1,
+    lineHeight:
+      1,
 
     letterSpacing:
       "-1.4px",
@@ -2004,17 +2152,23 @@ const styles = {
     margin:
       "8px 0 0",
 
+    maxWidth:
+      "260px",
+
     color:
-      "rgba(255,255,255,.9)",
+      "rgba(255,255,255,.92)",
 
     fontSize:
       "15px",
 
     fontWeight:
       700,
+
+    lineHeight:
+      1.3,
   },
 
-  demoBadge: {
+  readyBadge: {
     flexShrink: 0,
 
     padding:
@@ -2027,9 +2181,10 @@ const styles = {
       "999px",
 
     backgroundColor:
-      "rgba(0,0,0,.7)",
+      "rgba(0,0,0,.72)",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
       "10px",
@@ -2047,9 +2202,11 @@ const styles = {
 
     zIndex: 5,
 
-    top: "20%",
+    top:
+      "19%",
 
-    left: "50%",
+    left:
+      "50%",
 
     width:
       "min(88vw, 460px)",
@@ -2074,9 +2231,11 @@ const styles = {
   },
 
   statusCircle: {
-    width: "72px",
+    width:
+      "68px",
 
-    height: "72px",
+    height:
+      "68px",
 
     display:
       "flex",
@@ -2096,10 +2255,11 @@ const styles = {
     backgroundColor:
       "rgba(0,0,0,.75)",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
-      "28px",
+      "27px",
 
     fontWeight:
       900,
@@ -2123,9 +2283,10 @@ const styles = {
 
   statusTitle: {
     margin:
-      "13px 0 0",
+      "12px 0 0",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
       "clamp(29px, 7vw, 41px)",
@@ -2142,7 +2303,7 @@ const styles = {
 
   statusMessage: {
     maxWidth:
-      "350px",
+      "370px",
 
     margin:
       "7px 0 0",
@@ -2182,14 +2343,16 @@ const styles = {
     alignItems:
       "center",
 
-    gap: "9px",
+    gap:
+      "8px",
 
     padding:
-      "18px 16px max(20px, env(safe-area-inset-bottom))",
+      "16px 16px max(18px, env(safe-area-inset-bottom))",
   },
 
   answerCard: {
-    width: "100%",
+    width:
+      "100%",
 
     maxWidth:
       "560px",
@@ -2198,7 +2361,7 @@ const styles = {
       "border-box",
 
     padding:
-      "16px 18px",
+      "15px 18px",
 
     border:
       "2px solid rgba(255,255,255,.45)",
@@ -2207,7 +2370,7 @@ const styles = {
       "20px",
 
     backgroundColor:
-      "rgba(0,0,0,.9)",
+      "rgba(0,0,0,.92)",
 
     backdropFilter:
       "blur(18px)",
@@ -2239,7 +2402,8 @@ const styles = {
   answerText: {
     margin: 0,
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
       "clamp(20px, 5.4vw, 27px)",
@@ -2255,13 +2419,14 @@ const styles = {
   },
 
   mainButton: {
-    width: "100%",
+    width:
+      "100%",
 
     maxWidth:
       "560px",
 
     minHeight:
-      "94px",
+      "88px",
 
     display:
       "flex",
@@ -2272,24 +2437,26 @@ const styles = {
     justifyContent:
       "center",
 
-    gap: "16px",
+    gap:
+      "16px",
 
     boxSizing:
       "border-box",
 
     padding:
-      "16px 22px",
+      "14px 22px",
 
     border:
       "4px solid #fff",
 
     borderRadius:
-      "25px",
+      "24px",
 
     backgroundColor:
       "#fff",
 
-    color: "#000",
+    color:
+      "#000",
 
     cursor:
       "pointer",
@@ -2311,16 +2478,19 @@ const styles = {
     backgroundColor:
       "#111",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     transform:
       "scale(.985)",
   },
 
   buttonIcon: {
-    width: "52px",
+    width:
+      "50px",
 
-    height: "52px",
+    height:
+      "50px",
 
     flexShrink: 0,
 
@@ -2339,10 +2509,11 @@ const styles = {
     backgroundColor:
       "#111",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
-      "24px",
+      "23px",
   },
 
   buttonTitle: {
@@ -2375,14 +2546,98 @@ const styles = {
     fontWeight:
       650,
 
-    opacity: 0.65,
+    opacity:
+      0.65,
 
     textAlign:
       "left",
   },
 
+  photoButton: {
+    width:
+      "100%",
+
+    maxWidth:
+      "560px",
+
+    minHeight:
+      "62px",
+
+    display:
+      "flex",
+
+    alignItems:
+      "center",
+
+    justifyContent:
+      "center",
+
+    gap:
+      "12px",
+
+    boxSizing:
+      "border-box",
+
+    padding:
+      "10px 18px",
+
+    border:
+      "3px solid #fff",
+
+    borderRadius:
+      "18px",
+
+    backgroundColor:
+      "rgba(0,0,0,.88)",
+
+    color:
+      "#fff",
+
+    cursor:
+      "pointer",
+
+    textAlign:
+      "left",
+  },
+
+  photoIcon: {
+    fontSize:
+      "25px",
+
+    flexShrink: 0,
+  },
+
+  photoTitle: {
+    display:
+      "block",
+
+    fontSize:
+      "17px",
+
+    fontWeight:
+      900,
+  },
+
+  photoHelp: {
+    display:
+      "block",
+
+    marginTop:
+      "2px",
+
+    color:
+      "rgba(255,255,255,.72)",
+
+    fontSize:
+      "11px",
+
+    fontWeight:
+      650,
+  },
+
   quickActions: {
-    width: "100%",
+    width:
+      "100%",
 
     maxWidth:
       "560px",
@@ -2393,12 +2648,13 @@ const styles = {
     gridTemplateColumns:
       "repeat(2, minmax(0, 1fr))",
 
-    gap: "9px",
+    gap:
+      "8px",
   },
 
   secondaryButton: {
     minHeight:
-      "68px",
+      "64px",
 
     display:
       "flex",
@@ -2409,10 +2665,11 @@ const styles = {
     justifyContent:
       "flex-start",
 
-    gap: "10px",
+    gap:
+      "10px",
 
     padding:
-      "10px 13px",
+      "9px 12px",
 
     border:
       "2px solid rgba(255,255,255,.55)",
@@ -2423,7 +2680,8 @@ const styles = {
     backgroundColor:
       "rgba(10,10,10,.92)",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     cursor:
       "pointer",
@@ -2436,7 +2694,7 @@ const styles = {
     flexShrink: 0,
 
     fontSize:
-      "23px",
+      "22px",
   },
 
   secondaryTitle: {
@@ -2470,9 +2728,9 @@ const styles = {
       1.2,
   },
 
-  helpButton: {
+  instructionsButton: {
     minHeight:
-      "45px",
+      "43px",
 
     padding:
       "8px 18px",
@@ -2486,7 +2744,8 @@ const styles = {
     backgroundColor:
       "rgba(0,0,0,.84)",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
       "13px",
@@ -2526,7 +2785,8 @@ const styles = {
   },
 
   manualForm: {
-    width: "100%",
+    width:
+      "100%",
 
     maxWidth:
       "560px",
@@ -2554,7 +2814,8 @@ const styles = {
     marginBottom:
       "9px",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
       "15px",
@@ -2567,7 +2828,8 @@ const styles = {
     display:
       "flex",
 
-    gap: "8px",
+    gap:
+      "8px",
   },
 
   input: {
@@ -2587,7 +2849,8 @@ const styles = {
     backgroundColor:
       "#111",
 
-    color: "#fff",
+    color:
+      "#fff",
 
     fontSize:
       "16px",
@@ -2605,7 +2868,8 @@ const styles = {
     backgroundColor:
       "#fff",
 
-    color: "#000",
+    color:
+      "#000",
 
     fontSize:
       "16px",

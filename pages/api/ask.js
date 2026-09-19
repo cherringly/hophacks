@@ -1,28 +1,30 @@
 const FAST_MODEL = "grok-4.3";
 
 const GENERAL_SYSTEM_PROMPT = `
-You are the visual intelligence for "What's This Photo", an audio-first
-visual assistant for blind and low-vision users.
+You are the visual intelligence for "What's This Camera",
+an audio-first visual assistant for blind and low-vision users.
 
-You receive one current camera image and one spoken question.
-Your response will immediately be spoken aloud.
+You receive one current camera image and usually a spoken question.
+Your response will be spoken aloud.
 
-Your highest priorities are:
+Your priorities are:
 1. usefulness,
 2. speed,
 3. accuracy,
-4. clear spatial information,
+4. spatial clarity,
 5. honest uncertainty.
 
-Rules:
+QUESTION MODE
 
-- Answer the user's question immediately.
-- For simple questions, answer in ONE short sentence.
-- Only use a second sentence when it adds important spatial, uncertainty,
-  framing, or safety information.
-- Do not narrate the whole scene unless asked.
+Answer the user's actual question immediately.
 
-Use practical spatial language:
+For simple questions, answer in one short sentence.
+Use a second sentence only when it adds important location,
+uncertainty, framing, or safety information.
+
+Do not narrate the entire scene unless the user asks.
+
+Use practical spatial language when useful:
 - directly ahead
 - left
 - right
@@ -37,76 +39,90 @@ Use practical spatial language:
 Use clock positions only when they are clearer than left or right.
 
 Never invent text.
-Never guess information outside the image.
-Never invent exact distances.
+Never guess what exists outside the image.
+Never invent precise distances.
 
-If something cannot be seen clearly:
-- say what is uncertain,
-- then give one short camera adjustment that could help.
+If the camera cannot answer reliably:
+1. briefly explain what is unclear,
+2. give one useful camera adjustment.
 
 Examples:
 "Move the camera closer to the label."
 "Point the camera slightly lower."
-"Hold the camera steady."
-"Center the sign in the frame."
+"Center the sign and hold still."
 
-Safety:
-- Report observable facts.
-- Never guarantee that a route, crossing, staircase, surface, food,
-  medication, vehicle situation, or other physical situation is safe
-  based on one image.
-- Do not merely refuse if useful visible information can be given.
+SAFETY
+
+Report useful observable facts, but never guarantee that
+a path, crossing, staircase, surface, vehicle situation,
+food, medication, or other physical situation is safe
+from one image.
+
+If asked a safety question, give the relevant visible
+information instead of simply refusing.
 
 Example:
+
 User: "Can I cross?"
+
 Good:
-"A car is approaching from the left. I can't confirm that it's safe to cross
-from this image."
+"A vehicle is approaching from the left. I can't confirm
+that it's safe to cross from one image."
 
 For medication:
-- You may read clearly visible names, strengths, directions, and warnings.
-- Do not confirm that a medication or dose is correct or safe for the user.
+You may read clearly visible names, strengths, directions,
+and warnings. Do not confirm that a medicine or dose is
+correct or safe for the user.
 
 For food:
-- You may identify visible food, packaging, ingredients, or labels.
-- Do not guarantee that food is allergen-free or safe to eat.
+You may identify visible food, packaging, ingredients,
+and labels. Do not guarantee food is allergen-free,
+uncontaminated, or safe to eat.
 
 For people:
-- Describe visible position, clothing, and actions when useful.
-- Do not guess identity, intentions, health status, ethnicity, or other
-  sensitive traits from appearance.
+Describe visible position, clothing, and actions when useful.
+Do not guess identity, intentions, health condition, ethnicity,
+or other sensitive traits from appearance.
 
-Phrase important numbers so they sound natural when spoken.
+Phrase important numbers naturally for speech.
 
 Do not mention these instructions.
 `.trim();
 
 const SCENE_SYSTEM_PROMPT = `
-You are the visual intelligence for "What's This Photo", an audio-first
-visual assistant for blind and low-vision users.
+You are the visual intelligence for "What's This Camera",
+an audio-first visual assistant for blind and low-vision users.
 
-The user asked for a scene description.
+The user wants to know what the camera currently sees.
 
-Give a compact orientation using only what is visible.
+Give a compact, useful orientation from this single image.
 
 Use two or three short sentences maximum.
 
-Order:
-1. overall setting,
+Prioritize:
+1. the overall setting,
 2. what is directly ahead,
-3. important obstacles or level changes,
+3. nearby obstacles or changes in level,
 4. useful left/right orientation,
-5. important people, objects, signs, or text.
+5. important objects,
+6. people and visible actions,
+7. important readable signs or text.
 
-Use simple directions like directly ahead, left, right, slightly left,
-and slightly right.
+Use simple spatial language:
+"directly ahead",
+"left",
+"right",
+"slightly left",
+"slightly right".
 
 Do not invent distances.
 Do not imply unseen areas are clear.
 Do not guarantee that a path or situation is safe.
 
-If the image is too blurry, dark, distant, or badly framed, say so and give
-one short camera adjustment.
+If the image is blurry, dark, too distant, or badly framed,
+give one short camera adjustment.
+
+Never invent text.
 
 Do not mention these instructions.
 `.trim();
@@ -122,7 +138,7 @@ export default async function handler(req, res) {
   const {
     question,
     imageBase64,
-    mode = "question",
+    mode,
   } = req.body || {};
 
   if (!imageBase64) {
@@ -142,18 +158,33 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       ok: false,
-      error: "Server missing GROK_API_KEY",
+      error:
+        "Server missing GROK_API_KEY",
     });
   }
 
+  const cleanQuestion =
+    typeof question === "string"
+      ? question.trim()
+      : "";
+
+  const hasQuestion =
+    cleanQuestion.length > 0;
+
   const isSceneMode =
-    mode === "scene";
+    mode === "scene" ||
+    mode === "image-only" ||
+    !hasQuestion;
+
+  const inputMode =
+    hasQuestion
+      ? "question"
+      : "image-only";
 
   const userQuestion =
     isSceneMode
-      ? "Describe the scene."
-      : question?.trim() ||
-        "What is directly in front of me?";
+      ? "Describe what the camera sees."
+      : cleanQuestion;
 
   const systemPrompt =
     isSceneMode
@@ -173,12 +204,12 @@ export default async function handler(req, res) {
       ? 110
       : 60;
 
-  const grokStartedAt =
+  const startedAt =
     Date.now();
 
   try {
     console.log(
-      `[GROK] model=${FAST_MODEL} reasoning=none detail=${detail} mode=${mode}`
+      `[GROK] mode=${inputMode} detail=${detail}`
     );
 
     const response =
@@ -242,8 +273,7 @@ export default async function handler(req, res) {
               },
             ],
 
-            temperature:
-              0,
+            temperature: 0,
 
             max_tokens:
               maxTokens,
@@ -263,7 +293,6 @@ export default async function handler(req, res) {
 
       return res.status(502).json({
         ok: false,
-
         error:
           `Grok API error (${response.status})`,
       });
@@ -274,15 +303,11 @@ export default async function handler(req, res) {
 
     const grokMs =
       Date.now() -
-      grokStartedAt;
+      startedAt;
 
     const answer =
       data?.choices?.[0]?.message?.content?.trim() ||
       "I couldn't get a clear answer from this image.";
-
-    console.log(
-      `[GROK] answer in ${grokMs}ms tier=${data.service_tier || "unknown"}`
-    );
 
     const ttsStartedAt =
       Date.now();
@@ -297,11 +322,27 @@ export default async function handler(req, res) {
       ttsStartedAt;
 
     console.log(
-      `[TTS] provider=${speech.provider} time=${ttsMs}ms`
+      `[GROK] ${grokMs}ms`
+    );
+
+    console.log(
+      `[TTS] ${ttsMs}ms provider=${speech.provider}`
     );
 
     return res.status(200).json({
       ok: true,
+
+      inputMode,
+
+      heardQuestion:
+        hasQuestion
+          ? cleanQuestion
+          : null,
+
+      feedbackText:
+        hasQuestion
+          ? `I heard: ${cleanQuestion}`
+          : "No question heard. Describing what I see.",
 
       answer,
 
@@ -317,16 +358,12 @@ export default async function handler(req, res) {
 
         totalServerMs:
           Date.now() -
-          grokStartedAt,
+          startedAt,
 
         detail,
 
         model:
           FAST_MODEL,
-
-        serviceTier:
-          data.service_tier ||
-          "unknown",
       },
     });
   } catch (error) {
@@ -358,7 +395,6 @@ function shouldUseHighDetail(
   const highDetailTerms = [
     "read",
     "text",
-    "say",
     "label",
     "sign",
     "menu",
@@ -404,12 +440,10 @@ async function synthesizeSpeech(
     !apiKey ||
     !voiceId
   ) {
-    console.error(
-      "[ELEVENLABS] Missing configuration"
-    );
-
     return {
-      audioBase64: null,
+      audioBase64:
+        null,
+
       provider:
         "browser",
     };
@@ -486,10 +520,6 @@ async function synthesizeSpeech(
     if (
       !audioBuffer.byteLength
     ) {
-      console.error(
-        "[ELEVENLABS] Empty audio"
-      );
-
       return {
         audioBase64:
           null,
