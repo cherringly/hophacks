@@ -1,24 +1,97 @@
+import Head from "next/head";
+
 import {
   useEffect,
   useRef,
   useState,
 } from "react";
 
+const INTRO_TEXT =
+  "What's This Photo. Your surroundings, spoken. " +
+  "Hold the ask button or Space and ask a question now. " +
+  "Release when you're done. " +
+  "Tap without speaking for a description. " +
+  "For full instructions, say instructions anytime.";
+
+const FULL_INSTRUCTIONS_TEXT =
+  "What's This Photo helps you understand what your camera sees. " +
+  "Hold the ask button while asking a question, then release when you're done. " +
+  "On the website, you can hold Space instead. " +
+  "Tap the ask button without speaking for an automatic description. " +
+  "On the website, a quick press of Space without speaking does the same. " +
+  "A high tone means I'm listening. " +
+  "A low tone means you've released the button and your input was submitted. " +
+  "Two rising notes mean I heard a question, and I'll tell you exactly what I heard. " +
+  "Three low pulses mean I did not hear a question, so I'll describe the image instead. " +
+  "Three rising notes mean your answer is ready. " +
+  "Falling tones mean something went wrong. " +
+  "Say describe scene for an overview of your surroundings. " +
+  "Say repeat to hear the last answer again. " +
+  "Say instructions to hear these full instructions again. " +
+  "Visual answers can be incomplete or wrong, so don't rely on What's This Photo alone for safety-critical decisions.";
+
 export default function Home() {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const currentAudioRef = useRef(null);
-  const audioContextRef = useRef(null);
+  const videoRef =
+    useRef(null);
 
-  const listeningRef = useRef(false);
-  const thinkingRef = useRef(false);
-  const cameraReadyRef = useRef(false);
-  const audioUnlockedRef = useRef(false);
+  const canvasRef =
+    useRef(null);
 
-  const speechCacheRef = useRef(
-    new Map()
-  );
+  const recognitionRef =
+    useRef(null);
+
+  const currentAudioRef =
+    useRef(null);
+
+  const audioContextRef =
+    useRef(null);
+
+  const listeningRef =
+    useRef(false);
+
+  const thinkingRef =
+    useRef(false);
+
+  const cameraReadyRef =
+    useRef(false);
+
+  const audioUnlockedRef =
+    useRef(false);
+
+  const answerRef =
+    useRef("");
+
+  const lastAudioBase64Ref =
+    useRef(null);
+
+  const interactionActiveRef =
+    useRef(false);
+
+  const stopRequestedRef =
+    useRef(false);
+
+  const waitingForRecognitionRef =
+    useRef(false);
+
+  const recognitionHadResultRef =
+    useRef(false);
+
+  const noSpeechHandledRef =
+    useRef(false);
+
+  const submittedCuePlayedRef =
+    useRef(false);
+
+  const suppressPrimaryClickRef =
+    useRef(false);
+
+  const fallbackSpaceDownRef =
+    useRef(false);
+
+  const speechCacheRef =
+    useRef(
+      new Map()
+    );
 
   const [
     cameraReady,
@@ -38,7 +111,9 @@ export default function Home() {
   const [
     status,
     setStatus,
-  ] = useState("Starting");
+  ] = useState(
+    "Starting"
+  );
 
   const [
     transcript,
@@ -60,15 +135,6 @@ export default function Home() {
     setManualText,
   ] = useState("");
 
-  const [
-    lastAudioBase64,
-    setLastAudioBase64,
-  ] = useState(null);
-
-  // ============================================================
-  // KEEP STATE REFS CURRENT
-  // ============================================================
-
   useEffect(() => {
     listeningRef.current =
       listening;
@@ -83,6 +149,21 @@ export default function Home() {
     cameraReadyRef.current =
       cameraReady;
   }, [cameraReady]);
+
+  useEffect(() => {
+    answerRef.current =
+      answer;
+  }, [answer]);
+
+  function wait(ms) {
+    return new Promise(
+      (resolve) =>
+        setTimeout(
+          resolve,
+          ms
+        )
+    );
+  }
 
   // ============================================================
   // AUDIO CONTEXT
@@ -128,16 +209,25 @@ export default function Home() {
       }
     }
 
+    if (
+      context.state !==
+      "running"
+    ) {
+      return null;
+    }
+
     return context;
   }
 
   // ============================================================
-  // TONES
+  // SOUND DESIGN
   // ============================================================
 
-  async function playTone(
-    frequency = 700,
-    duration = 120
+  async function playNote(
+    frequency,
+    duration = 80,
+    volume = 0.22,
+    type = "sine"
   ) {
     try {
       const context =
@@ -147,44 +237,63 @@ export default function Home() {
         return;
       }
 
-      const oscillator =
-        context.createOscillator();
+      return new Promise(
+        (resolve) => {
+          const oscillator =
+            context.createOscillator();
 
-      const gain =
-        context.createGain();
+          const gain =
+            context.createGain();
 
-      oscillator.connect(gain);
+          oscillator.type =
+            type;
 
-      gain.connect(
-        context.destination
-      );
+          oscillator.frequency.setValueAtTime(
+            frequency,
+            context.currentTime
+          );
 
-      oscillator.type =
-        "sine";
+          oscillator.connect(
+            gain
+          );
 
-      oscillator.frequency.setValueAtTime(
-        frequency,
-        context.currentTime
-      );
+          gain.connect(
+            context.destination
+          );
 
-      gain.gain.setValueAtTime(
-        0.32,
-        context.currentTime
-      );
+          const now =
+            context.currentTime;
 
-      gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        context.currentTime +
-          duration / 1000
-      );
+          const end =
+            now +
+            duration / 1000;
 
-      oscillator.start(
-        context.currentTime
-      );
+          gain.gain.setValueAtTime(
+            0.0001,
+            now
+          );
 
-      oscillator.stop(
-        context.currentTime +
-          duration / 1000
+          gain.gain.exponentialRampToValueAtTime(
+            volume,
+            now + 0.008
+          );
+
+          gain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            end
+          );
+
+          oscillator.onended =
+            () => resolve();
+
+          oscillator.start(
+            now
+          );
+
+          oscillator.stop(
+            end
+          );
+        }
       );
     } catch (error) {
       console.error(
@@ -194,69 +303,184 @@ export default function Home() {
     }
   }
 
-  function listeningCue() {
-    playTone(
-      1050,
-      140
-    );
-  }
+  async function playSequence(
+    notes
+  ) {
+    for (
+      let index = 0;
+      index < notes.length;
+      index += 1
+    ) {
+      const note =
+        notes[index];
 
-  function submittedCue() {
-    playTone(
-      520,
-      130
-    );
-  }
-
-  function successCue() {
-    playTone(
-      680,
-      85
-    );
-
-    setTimeout(() => {
-      playTone(
-        1100,
-        115
+      await playNote(
+        note.frequency,
+        note.duration,
+        note.volume,
+        note.type ||
+          "sine"
       );
-    }, 100);
+
+      if (
+        note.gap
+      ) {
+        await wait(
+          note.gap
+        );
+      }
+    }
   }
 
-  function noSpeechCue() {
-    playTone(
-      420,
-      100
-    );
-
-    setTimeout(() => {
-      playTone(
-        420,
-        100
-      );
-    }, 135);
+  // Gentle two-note opening.
+  async function startupCue() {
+    await playSequence([
+      {
+        frequency:
+          392.0,
+        duration: 70,
+        volume: 0.17,
+        gap: 28,
+      },
+      {
+        frequency:
+          523.25,
+        duration: 100,
+        volume: 0.19,
+      },
+    ]);
   }
 
-  function errorCue() {
-    playTone(
-      500,
-      130
+  // One crisp high note:
+  // microphone is actively listening.
+  async function listeningCue() {
+    await playNote(
+      880.0,
+      75,
+      0.24
     );
+  }
 
-    setTimeout(() => {
-      playTone(
-        290,
-        220
-      );
-    }, 150);
+  // One short lower note:
+  // button released / input submitted.
+  async function submittedCue() {
+    await playNote(
+      440.0,
+      70,
+      0.22
+    );
+  }
+
+  // Two rising notes:
+  // speech was recognized.
+  async function heardCue() {
+    await playSequence([
+      {
+        frequency:
+          587.33,
+        duration: 50,
+        volume: 0.19,
+        gap: 18,
+      },
+      {
+        frequency:
+          783.99,
+        duration: 70,
+        volume: 0.21,
+      },
+    ]);
+  }
+
+  // Three low pulses:
+  // no spoken question was heard.
+  async function noSpeechCue() {
+    await playSequence([
+      {
+        frequency:
+          349.23,
+        duration: 48,
+        volume: 0.18,
+        gap: 28,
+      },
+      {
+        frequency:
+          349.23,
+        duration: 48,
+        volume: 0.18,
+        gap: 28,
+      },
+      {
+        frequency:
+          349.23,
+        duration: 75,
+        volume: 0.19,
+      },
+    ]);
+  }
+
+  // Quick major arpeggio:
+  // answer is ready to be spoken.
+  async function answerReadyCue() {
+    await playSequence([
+      {
+        frequency:
+          523.25,
+        duration: 42,
+        volume: 0.17,
+        gap: 14,
+      },
+      {
+        frequency:
+          659.25,
+        duration: 42,
+        volume: 0.18,
+        gap: 14,
+      },
+      {
+        frequency:
+          783.99,
+        duration: 65,
+        volume: 0.2,
+      },
+    ]);
+  }
+
+  // Descending notes:
+  // an actual system error occurred.
+  async function errorCue() {
+    await playSequence([
+      {
+        frequency:
+          659.25,
+        duration: 65,
+        volume: 0.2,
+        gap: 24,
+      },
+      {
+        frequency:
+          493.88,
+        duration: 75,
+        volume: 0.21,
+        gap: 24,
+      },
+      {
+        frequency:
+          329.63,
+        duration: 110,
+        volume: 0.22,
+      },
+    ]);
 
     vibrate([
       180,
       80,
-      250,
+      260,
     ]);
   }
 
-  function vibrate(pattern) {
+  function vibrate(
+    pattern
+  ) {
     if (
       typeof navigator !==
         "undefined" &&
@@ -297,7 +521,9 @@ export default function Home() {
     }
   }
 
-  function browserSpeak(text) {
+  function browserSpeak(
+    text
+  ) {
     return new Promise(
       (resolve) => {
         if (
@@ -344,10 +570,14 @@ export default function Home() {
   ) {
     return new Promise(
       (resolve) => {
-        if (!audioBase64) {
+        if (
+          !audioBase64
+        ) {
           browserSpeak(
             fallbackText
-          ).then(resolve);
+          ).then(
+            resolve
+          );
 
           return;
         }
@@ -378,7 +608,9 @@ export default function Home() {
 
               browserSpeak(
                 fallbackText
-              ).then(resolve);
+              ).then(
+                resolve
+              );
             };
 
           audio
@@ -395,7 +627,9 @@ export default function Home() {
 
                 browserSpeak(
                   fallbackText
-                ).then(resolve);
+                ).then(
+                  resolve
+                );
               }
             );
         } catch (error) {
@@ -406,13 +640,17 @@ export default function Home() {
 
           browserSpeak(
             fallbackText
-          ).then(resolve);
+          ).then(
+            resolve
+          );
         }
       }
     );
   }
 
-  async function speak(text) {
+  async function speak(
+    text
+  ) {
     if (!text) {
       return;
     }
@@ -424,7 +662,9 @@ export default function Home() {
         text
       );
 
-    if (cachedAudio) {
+    if (
+      cachedAudio
+    ) {
       await playElevenLabsAudio(
         cachedAudio,
         text
@@ -438,7 +678,8 @@ export default function Home() {
         await fetch(
           "/api/speak",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               "Content-Type":
@@ -487,34 +728,27 @@ export default function Home() {
   }
 
   // ============================================================
-  // INTRODUCTION
+  // INTRO + FULL INSTRUCTIONS
   // ============================================================
 
-  function speakWelcome() {
-    speak(
-      "What's This Photo. " +
-        "Hold to ask a question, or tap Take Photo for a description. " +
-        "Say repeat instructions anytime."
+  async function speakWelcome() {
+    await startupCue();
+
+    await wait(
+      60
+    );
+
+    await speak(
+      INTRO_TEXT
     );
   }
 
-  // ============================================================
-  // FULL INSTRUCTIONS
-  // ============================================================
+  async function playInstructions() {
+    audioUnlockedRef.current =
+      true;
 
-  function playInstructions() {
-    speak(
-      "What's This Photo helps describe what your camera sees. " +
-        "On this website, hold the large Ask button while speaking, then release. " +
-        "You can also hold the space bar. " +
-        "If you don't want to speak, tap Take Photo for an automatic description. " +
-        "On the physical What's This Photo camera, hold the camera button while asking a question, then release. " +
-        "Press and release the camera button without speaking for an automatic description. " +
-        "After you speak, I'll tell you what question I heard. " +
-        "Say describe scene for an overview. " +
-        "Say repeat to hear the last answer. " +
-        "Say repeat instructions to hear these instructions again. " +
-        "Visual answers can be wrong or incomplete, so do not rely on the camera alone for safety-critical decisions."
+    await speak(
+      FULL_INSTRUCTIONS_TEXT
     );
   }
 
@@ -558,40 +792,45 @@ export default function Home() {
             stream;
         }
 
+        cameraReadyRef.current =
+          true;
+
         setCameraReady(
           true
         );
-
-        cameraReadyRef.current =
-          true;
 
         setStatus(
           "Ready"
         );
 
-        setTimeout(() => {
-          if (
-            !audioUnlockedRef.current
-          ) {
-            speakWelcome();
-          }
-        }, 450);
+        setTimeout(
+          () => {
+            if (
+              !audioUnlockedRef.current
+            ) {
+              speakWelcome();
+            }
+          },
+          450
+        );
       } catch (error) {
         console.error(
           "Camera error:",
           error
         );
 
+        cameraReadyRef.current =
+          false;
+
         setCameraReady(
           false
         );
 
-        cameraReadyRef.current =
-          false;
-
         setStatus(
           "Camera unavailable"
         );
+
+        errorCue();
       }
     }
 
@@ -727,18 +966,22 @@ export default function Home() {
     const imageBase64 =
       capturePhotoBase64();
 
-    if (!imageBase64) {
+    if (
+      !imageBase64
+    ) {
       setStatus(
         "Camera could not capture"
       );
 
-      errorCue();
+      await errorCue();
 
-      setTimeout(() => {
-        speak(
-          "I couldn't capture the image. Try again."
-        );
-      }, 350);
+      await wait(
+        80
+      );
+
+      speak(
+        "I couldn't capture an image. Try again."
+      );
 
       return;
     }
@@ -799,12 +1042,15 @@ export default function Home() {
         "[PERFORMANCE]",
         {
           totalMs,
+
           serverTiming:
             data.timing,
         }
       );
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
         throw new Error(
           data.error ||
             "Request failed"
@@ -815,14 +1061,16 @@ export default function Home() {
         data.answer ||
         "I couldn't determine an answer.";
 
+      answerRef.current =
+        responseText;
+
       setAnswer(
         responseText
       );
 
-      setLastAudioBase64(
+      lastAudioBase64Ref.current =
         data.audioBase64 ||
-          null
-      );
+        null;
 
       if (
         feedbackPromise
@@ -832,24 +1080,27 @@ export default function Home() {
         } catch {}
       }
 
+      thinkingRef.current =
+        false;
+
+      setThinking(
+        false
+      );
+
       setStatus(
         "Ready"
       );
 
-      successCue();
+      await answerReadyCue();
 
       vibrate([
         45,
         30,
-        70,
+        75,
       ]);
 
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            150
-          )
+      await wait(
+        45
       );
 
       if (
@@ -870,29 +1121,31 @@ export default function Home() {
         error
       );
 
-      setStatus(
-        "Something went wrong"
-      );
-
-      errorCue();
-
-      setTimeout(() => {
-        speak(
-          "Something went wrong. Please try again."
-        );
-      }, 350);
-    } finally {
       thinkingRef.current =
         false;
 
       setThinking(
         false
       );
+
+      setStatus(
+        "Something went wrong"
+      );
+
+      await errorCue();
+
+      await wait(
+        80
+      );
+
+      speak(
+        "Something went wrong. Try again."
+      );
     }
   }
 
   // ============================================================
-  // RECOGNIZED QUESTION
+  // NORMAL SPOKEN QUESTION
   // ============================================================
 
   function submitRecognizedQuestion(
@@ -901,10 +1154,10 @@ export default function Home() {
     const cleanQuestion =
       question?.trim();
 
-    if (!cleanQuestion) {
-      submitImageOnly(
-        true
-      );
+    if (
+      !cleanQuestion
+    ) {
+      submitImageOnly();
 
       return;
     }
@@ -918,9 +1171,17 @@ export default function Home() {
     );
 
     const feedbackPromise =
-      speak(
-        `Heard: ${cleanQuestion}`
-      );
+      (async () => {
+        await heardCue();
+
+        await wait(
+          35
+        );
+
+        await speak(
+          `Heard: ${cleanQuestion}`
+        );
+      })();
 
     askAboutImage(
       cleanQuestion,
@@ -931,11 +1192,55 @@ export default function Home() {
   }
 
   // ============================================================
-  // IMAGE ONLY
+  // NO SPEECH = AUTOMATIC DESCRIPTION
   // ============================================================
 
-  function submitImageOnly(
-    cameFromSilence = false
+  function submitImageOnly() {
+    if (
+      thinkingRef.current ||
+      !cameraReadyRef.current
+    ) {
+      return;
+    }
+
+    audioUnlockedRef.current =
+      true;
+
+    setTranscript(
+      "No question heard"
+    );
+
+    setStatus(
+      "Describing"
+    );
+
+    const feedbackPromise =
+      (async () => {
+        await noSpeechCue();
+
+        await wait(
+          35
+        );
+
+        await speak(
+          "No question heard. Describing."
+        );
+      })();
+
+    askAboutImage(
+      "",
+      "No question heard",
+      "image-only",
+      feedbackPromise
+    );
+  }
+
+  // ============================================================
+  // DESCRIBE SCENE COMMAND
+  // ============================================================
+
+  function describeScene(
+    feedbackPromise = null
   ) {
     if (
       thinkingRef.current ||
@@ -944,56 +1249,6 @@ export default function Home() {
       return;
     }
 
-    const feedbackText =
-      cameFromSilence
-        ? "No question heard. Describing."
-        : "Photo taken. Describing.";
-
-    setTranscript(
-      cameFromSilence
-        ? "No question heard"
-        : "Photo only"
-    );
-
-    setStatus(
-      "Describing"
-    );
-
-    if (
-      cameFromSilence
-    ) {
-      noSpeechCue();
-    }
-
-    const feedbackPromise =
-      speak(
-        feedbackText
-      );
-
-    askAboutImage(
-      "",
-      cameFromSilence
-        ? "No question heard — automatic description"
-        : "Automatic description",
-      "image-only",
-      feedbackPromise
-    );
-  }
-
-  // ============================================================
-  // DESCRIBE SCENE
-  // ============================================================
-
-  function describeScene() {
-    if (
-      thinkingRef.current ||
-      !cameraReadyRef.current
-    ) {
-      return;
-    }
-
-    stopCurrentAudio();
-
     setTranscript(
       "Describe scene"
     );
@@ -1001,7 +1256,8 @@ export default function Home() {
     askAboutImage(
       "",
       "Describe scene",
-      "scene"
+      "scene",
+      feedbackPromise
     );
   }
 
@@ -1010,34 +1266,45 @@ export default function Home() {
   // ============================================================
 
   function repeatAnswer() {
-    if (!answer) {
+    const previousAnswer =
+      answerRef.current;
+
+    const previousAudio =
+      lastAudioBase64Ref.current;
+
+    if (
+      !previousAnswer
+    ) {
       noSpeechCue();
 
-      setTimeout(() => {
-        speak(
-          "There isn't a previous answer yet."
-        );
-      }, 250);
+      setTimeout(
+        () => {
+          speak(
+            "There isn't a previous answer yet."
+          );
+        },
+        220
+      );
 
       return;
     }
 
     if (
-      lastAudioBase64
+      previousAudio
     ) {
       playElevenLabsAudio(
-        lastAudioBase64,
-        answer
+        previousAudio,
+        previousAnswer
       );
     } else {
       speak(
-        answer
+        previousAnswer
       );
     }
   }
 
   // ============================================================
-  // VOICE COMMAND ROUTING
+  // VOICE COMMANDS
   // ============================================================
 
   function normalizeCommand(
@@ -1056,16 +1323,16 @@ export default function Home() {
       .trim();
   }
 
-  function handleSpokenInput(
+  async function handleSpokenInput(
     rawQuestion
   ) {
     const question =
       rawQuestion?.trim();
 
-    if (!question) {
-      submitImageOnly(
-        true
-      );
+    if (
+      !question
+    ) {
+      submitImageOnly();
 
       return;
     }
@@ -1075,69 +1342,86 @@ export default function Home() {
         question
       );
 
-    const describeCommands =
-      [
-        "describe scene",
-        "describe the scene",
-        "describe my surroundings",
-        "describe surroundings",
-        "describe whats around me",
-        "whats around me",
-        "what is around me",
-        "tell me whats around me",
-      ];
+    const describeCommands = [
+      "describe scene",
+      "describe the scene",
+      "describe my surroundings",
+      "describe surroundings",
+      "describe whats around me",
+      "whats around me",
+      "what is around me",
+      "tell me whats around me",
+    ];
 
     if (
       describeCommands.includes(
         command
       )
     ) {
-      describeScene();
+      const feedbackPromise =
+        heardCue();
+
+      describeScene(
+        feedbackPromise
+      );
 
       return;
     }
 
-    const repeatCommands =
-      [
-        "repeat",
-        "repeat answer",
-        "repeat the answer",
-        "repeat that",
-        "say that again",
-        "say it again",
-        "what did you say",
-        "again",
-      ];
+    const repeatCommands = [
+      "repeat",
+      "repeat answer",
+      "repeat the answer",
+      "repeat that",
+      "say that again",
+      "say it again",
+      "what did you say",
+      "again",
+    ];
 
     if (
       repeatCommands.includes(
         command
       )
     ) {
+      await heardCue();
+
+      await wait(
+        35
+      );
+
       repeatAnswer();
 
       return;
     }
 
-    const instructionCommands =
-      [
-        "repeat instructions",
-        "repeat the instructions",
-        "instructions",
-        "instructions again",
-        "say the instructions again",
-        "give me the instructions",
-        "tell me the instructions",
-        "what are the instructions",
-        "how do i use this",
-        "how does this work",
-      ];
+    const instructionCommands = [
+      "instructions",
+      "instruction",
+      "give me instructions",
+      "give me the instructions",
+      "tell me the instructions",
+      "what are the instructions",
+      "how do i use this",
+      "how does this work",
+
+      // Old aliases remain supported,
+      // but are no longer taught.
+      "repeat instructions",
+      "repeat the instructions",
+    ];
 
     if (
       instructionCommands.includes(
         command
       )
     ) {
+      await heardCue();
+
+      await wait(
+        35
+      );
+
       playInstructions();
 
       return;
@@ -1146,6 +1430,76 @@ export default function Home() {
     submitRecognizedQuestion(
       question
     );
+  }
+
+  // ============================================================
+  // NO-SPEECH OUTCOME
+  // ============================================================
+
+  function finalizeNoSpeech() {
+    if (
+      noSpeechHandledRef.current ||
+      recognitionHadResultRef.current ||
+      !waitingForRecognitionRef.current
+    ) {
+      return;
+    }
+
+    noSpeechHandledRef.current =
+      true;
+
+    waitingForRecognitionRef.current =
+      false;
+
+    interactionActiveRef.current =
+      false;
+
+    listeningRef.current =
+      false;
+
+    setListening(
+      false
+    );
+
+    submitImageOnly();
+  }
+
+  // ============================================================
+  // SUBMIT CURRENT MICROPHONE SESSION
+  // ============================================================
+
+  function submitRecognitionStop() {
+    if (
+      !recognitionRef.current
+    ) {
+      return;
+    }
+
+    if (
+      !submittedCuePlayedRef.current
+    ) {
+      submittedCuePlayedRef.current =
+        true;
+
+      submittedCue();
+
+      vibrate([
+        35,
+        25,
+        35,
+      ]);
+    }
+
+    try {
+      recognitionRef.current.stop();
+    } catch (error) {
+      console.error(
+        "Could not stop recognition:",
+        error
+      );
+
+      finalizeNoSpeech();
+    }
   }
 
   // ============================================================
@@ -1201,6 +1555,23 @@ export default function Home() {
         setStatus(
           "Listening"
         );
+
+        listeningCue();
+
+        vibrate(
+          45
+        );
+
+        if (
+          stopRequestedRef.current
+        ) {
+          setTimeout(
+            () => {
+              submitRecognitionStop();
+            },
+            90
+          );
+        }
       };
 
     recognition.onresult =
@@ -1210,6 +1581,17 @@ export default function Home() {
             .results?.[0]?.[0]
             ?.transcript?.trim();
 
+        recognitionHadResultRef.current =
+          Boolean(
+            question
+          );
+
+        waitingForRecognitionRef.current =
+          false;
+
+        interactionActiveRef.current =
+          false;
+
         listeningRef.current =
           false;
 
@@ -1217,9 +1599,15 @@ export default function Home() {
           false
         );
 
-        handleSpokenInput(
+        if (
           question
-        );
+        ) {
+          handleSpokenInput(
+            question
+          );
+        } else {
+          finalizeNoSpeech();
+        }
       };
 
     recognition.onerror =
@@ -1238,21 +1626,31 @@ export default function Home() {
 
         if (
           event.error ===
-          "aborted"
+          "no-speech"
         ) {
+          finalizeNoSpeech();
+
           return;
         }
 
         if (
           event.error ===
-          "no-speech"
+          "aborted"
         ) {
-          submitImageOnly(
-            true
-          );
+          if (
+            stopRequestedRef.current
+          ) {
+            finalizeNoSpeech();
+          }
 
           return;
         }
+
+        waitingForRecognitionRef.current =
+          false;
+
+        interactionActiveRef.current =
+          false;
 
         if (
           event.error ===
@@ -1264,11 +1662,14 @@ export default function Home() {
 
           errorCue();
 
-          setTimeout(() => {
-            speak(
-              "Microphone access is off. You can still use Take Photo."
-            );
-          }, 300);
+          setTimeout(
+            () => {
+              speak(
+                "Microphone access is off. You can still activate the ask button without speaking for a description."
+              );
+            },
+            300
+          );
 
           return;
         }
@@ -1283,11 +1684,14 @@ export default function Home() {
 
           errorCue();
 
-          setTimeout(() => {
-            speak(
-              "I can't access the microphone. You can still use Take Photo."
-            );
-          }, 300);
+          setTimeout(
+            () => {
+              speak(
+                "I can't access the microphone."
+              );
+            },
+            300
+          );
 
           return;
         }
@@ -1298,11 +1702,14 @@ export default function Home() {
 
         errorCue();
 
-        setTimeout(() => {
-          speak(
-            "I couldn't understand the microphone input. Try again, or use Take Photo."
-          );
-        }, 300);
+        setTimeout(
+          () => {
+            speak(
+              "I couldn't understand the microphone input. Try again."
+            );
+          },
+          300
+        );
       };
 
     recognition.onend =
@@ -1313,6 +1720,21 @@ export default function Home() {
         setListening(
           false
         );
+
+        interactionActiveRef.current =
+          false;
+
+        if (
+          waitingForRecognitionRef.current &&
+          !recognitionHadResultRef.current
+        ) {
+          setTimeout(
+            () => {
+              finalizeNoSpeech();
+            },
+            40
+          );
+        }
       };
 
     recognitionRef.current =
@@ -1323,25 +1745,20 @@ export default function Home() {
         recognition.abort();
       } catch {}
     };
-  }, [
-    answer,
-    lastAudioBase64,
-  ]);
+  }, []);
 
   // ============================================================
   // START LISTENING
   // ============================================================
 
   async function startListening() {
-    await getAudioContext();
-
     audioUnlockedRef.current =
       true;
 
     if (
       thinkingRef.current
     ) {
-      errorCue();
+      await errorCue();
 
       return;
     }
@@ -1349,13 +1766,15 @@ export default function Home() {
     if (
       !cameraReadyRef.current
     ) {
-      errorCue();
+      await errorCue();
 
-      setTimeout(() => {
-        speak(
-          "The camera is still starting."
-        );
-      }, 250);
+      await wait(
+        80
+      );
+
+      speak(
+        "The camera is still starting."
+      );
 
       return;
     }
@@ -1363,18 +1782,21 @@ export default function Home() {
     if (
       !recognitionRef.current
     ) {
-      errorCue();
+      await errorCue();
 
-      setTimeout(() => {
-        speak(
-          "Voice recognition isn't available. Use Take Photo instead."
-        );
-      }, 250);
+      await wait(
+        80
+      );
+
+      speak(
+        "Voice recognition isn't available."
+      );
 
       return;
     }
 
     if (
+      interactionActiveRef.current ||
       listeningRef.current
     ) {
       return;
@@ -1382,22 +1804,31 @@ export default function Home() {
 
     stopCurrentAudio();
 
-    listeningRef.current =
+    interactionActiveRef.current =
       true;
 
-    setListening(
-      true
-    );
+    stopRequestedRef.current =
+      false;
+
+    waitingForRecognitionRef.current =
+      true;
+
+    recognitionHadResultRef.current =
+      false;
+
+    noSpeechHandledRef.current =
+      false;
+
+    submittedCuePlayedRef.current =
+      false;
 
     setTranscript("");
 
     setStatus(
-      "Listening"
+      "Starting microphone"
     );
 
-    listeningCue();
-
-    vibrate(45);
+    await getAudioContext();
 
     try {
       recognitionRef.current.start();
@@ -1407,6 +1838,12 @@ export default function Home() {
         error
       );
 
+      interactionActiveRef.current =
+        false;
+
+      waitingForRecognitionRef.current =
+        false;
+
       listeningRef.current =
         false;
 
@@ -1414,62 +1851,40 @@ export default function Home() {
         false
       );
 
-      errorCue();
+      await errorCue();
 
-      setTimeout(() => {
-        speak(
-          "I couldn't start listening. Try again, or use Take Photo."
-        );
-      }, 250);
+      speak(
+        "I couldn't start listening. Try again."
+      );
     }
   }
 
   // ============================================================
-  // STOP LISTENING
+  // RELEASE
   // ============================================================
 
   function stopListening() {
     if (
-      !recognitionRef.current ||
+      !interactionActiveRef.current &&
       !listeningRef.current
     ) {
       return;
     }
 
+    interactionActiveRef.current =
+      false;
+
+    stopRequestedRef.current =
+      true;
+
     setStatus(
       "Processing"
     );
 
-    submittedCue();
-
-    vibrate([
-      35,
-      25,
-      35,
-    ]);
-
-    try {
-      recognitionRef.current.stop();
-    } catch (error) {
-      console.error(
-        "Could not stop recognition:",
-        error
-      );
-
-      listeningRef.current =
-        false;
-
-      setListening(
-        false
-      );
-
-      errorCue();
-
-      setTimeout(() => {
-        speak(
-          "Something went wrong. Try again."
-        );
-      }, 250);
+    if (
+      listeningRef.current
+    ) {
+      submitRecognitionStop();
     }
   }
 
@@ -1478,6 +1893,39 @@ export default function Home() {
   // ============================================================
 
   useEffect(() => {
+    function isInteractiveTarget(
+      target
+    ) {
+      if (!target) {
+        return false;
+      }
+
+      const tag =
+        target.tagName;
+
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return true;
+      }
+
+      if (
+        typeof target.closest ===
+        "function"
+      ) {
+        return Boolean(
+          target.closest(
+            "button, a, [role='button']"
+          )
+        );
+      }
+
+      return false;
+    }
+
     function keyDown(
       event
     ) {
@@ -1485,22 +1933,23 @@ export default function Home() {
         event.code !==
           "Space" ||
         event.repeat ||
-        event.target
-          ?.tagName ===
-          "INPUT" ||
-        event.target
-          ?.tagName ===
-          "TEXTAREA" ||
-        event.target
-          ?.tagName ===
-          "BUTTON"
+        isInteractiveTarget(
+          event.target
+        )
       ) {
         return;
       }
 
       event.preventDefault();
 
-      startListening();
+      if (
+        speechSupported
+      ) {
+        startListening();
+      } else {
+        fallbackSpaceDownRef.current =
+          true;
+      }
     }
 
     function keyUp(
@@ -1509,22 +1958,27 @@ export default function Home() {
       if (
         event.code !==
           "Space" ||
-        event.target
-          ?.tagName ===
-          "INPUT" ||
-        event.target
-          ?.tagName ===
-          "TEXTAREA" ||
-        event.target
-          ?.tagName ===
-          "BUTTON"
+        isInteractiveTarget(
+          event.target
+        )
       ) {
         return;
       }
 
       event.preventDefault();
 
-      stopListening();
+      if (
+        speechSupported
+      ) {
+        stopListening();
+      } else if (
+        fallbackSpaceDownRef.current
+      ) {
+        fallbackSpaceDownRef.current =
+          false;
+
+        submitImageOnly();
+      }
     }
 
     window.addEventListener(
@@ -1548,7 +2002,9 @@ export default function Home() {
         keyUp
       );
     };
-  });
+  }, [
+    speechSupported,
+  ]);
 
   // ============================================================
   // MANUAL TEXT FALLBACK
@@ -1571,13 +2027,147 @@ export default function Home() {
 
     setManualText("");
 
-    handleSpokenInput(
+    submitRecognizedQuestion(
       question
     );
   }
 
   // ============================================================
-  // SCREEN STATUS
+  // PRIMARY BUTTON
+  // ============================================================
+
+  function scheduleClickReset() {
+    setTimeout(
+      () => {
+        suppressPrimaryClickRef.current =
+          false;
+      },
+      500
+    );
+  }
+
+  function handlePrimaryPointerDown(
+    event
+  ) {
+    if (
+      !speechSupported
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    suppressPrimaryClickRef.current =
+      true;
+
+    try {
+      event.currentTarget.setPointerCapture(
+        event.pointerId
+      );
+    } catch {}
+
+    startListening();
+  }
+
+  function handlePrimaryPointerUp(
+    event
+  ) {
+    if (
+      !speechSupported
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    stopListening();
+
+    scheduleClickReset();
+  }
+
+  function handlePrimaryPointerCancel(
+    event
+  ) {
+    if (
+      !speechSupported
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    stopListening();
+
+    scheduleClickReset();
+  }
+
+  function handlePrimaryKeyDown(
+    event
+  ) {
+    if (
+      !speechSupported ||
+      event.repeat
+    ) {
+      return;
+    }
+
+    if (
+      event.code !==
+        "Space" &&
+      event.code !==
+        "Enter"
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    suppressPrimaryClickRef.current =
+      true;
+
+    startListening();
+  }
+
+  function handlePrimaryKeyUp(
+    event
+  ) {
+    if (
+      !speechSupported
+    ) {
+      return;
+    }
+
+    if (
+      event.code !==
+        "Space" &&
+      event.code !==
+        "Enter"
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    stopListening();
+
+    scheduleClickReset();
+  }
+
+  function handlePrimaryClick() {
+    if (
+      suppressPrimaryClickRef.current
+    ) {
+      suppressPrimaryClickRef.current =
+        false;
+
+      return;
+    }
+
+    submitImageOnly();
+  }
+
+  // ============================================================
+  // STATUS
   // ============================================================
 
   const statusTitle =
@@ -1585,17 +2175,24 @@ export default function Home() {
       ? "Listening"
       : thinking
       ? "Looking"
-      : cameraReady
-      ? "Ready"
-      : "Starting";
+      : status;
 
   const statusMessage =
     listening
       ? "Ask your question. Release when finished."
       : thinking
       ? "Checking what the camera sees."
+      : status ===
+        "Camera unavailable"
+      ? "Camera access is required."
+      : status ===
+        "Microphone unavailable"
+      ? "Activate the ask button without speaking for a description."
+      : status ===
+        "Something went wrong"
+      ? "Try again."
       : cameraReady
-      ? "Hold Ask, or choose Take Photo."
+      ? "Hold to ask. Tap to describe."
       : "Getting the camera ready.";
 
   // ============================================================
@@ -1603,44 +2200,55 @@ export default function Home() {
   // ============================================================
 
   return (
-    <main
-      style={
-        styles.page
-      }
-    >
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        style={
-          styles.video
-        }
-        aria-hidden="true"
-      />
+    <>
+      <Head>
+        <title>
+          What&apos;s This Photo
+        </title>
 
-      <canvas
-        ref={canvasRef}
-        style={{
-          display:
-            "none",
-        }}
-        aria-hidden="true"
-      />
+        <meta
+          name="description"
+          content="What's This Photo — Your surroundings, spoken."
+        />
+      </Head>
 
-      <div
+      <main
         style={
-          styles.gradient
-        }
-        aria-hidden="true"
-      />
-
-      <header
-        style={
-          styles.header
+          styles.page
         }
       >
-        <div>
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          style={
+            styles.video
+          }
+          aria-hidden="true"
+        />
+
+        <canvas
+          ref={canvasRef}
+          style={{
+            display:
+              "none",
+          }}
+          aria-hidden="true"
+        />
+
+        <div
+          style={
+            styles.gradient
+          }
+          aria-hidden="true"
+        />
+
+        <header
+          style={
+            styles.header
+          }
+        >
           <h1
             style={
               styles.logo
@@ -1657,115 +2265,117 @@ export default function Home() {
             Your surroundings,
             spoken.
           </p>
-        </div>
+        </header>
 
-        <div
+        <section
           style={
-            styles.readyBadge
+            styles.centerStatus
           }
-          aria-label={
-            cameraReady
-              ? "Camera ready"
-              : "Camera starting"
-          }
-        >
-          {cameraReady
-            ? "READY"
-            : "STARTING"}
-        </div>
-      </header>
-
-      <section
-        style={
-          styles.centerStatus
-        }
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <div
-          style={{
-            ...styles.statusCircle,
-
-            ...(listening
-              ? styles.listeningCircle
-              : {}),
-
-            ...(thinking
-              ? styles.thinkingCircle
-              : {}),
-          }}
           aria-hidden="true"
         >
-          {listening
-            ? "●"
-            : thinking
-            ? "•••"
-            : "✓"}
-        </div>
-
-        <h2
-          style={
-            styles.statusTitle
-          }
-        >
-          {statusTitle}
-        </h2>
-
-        <p
-          style={
-            styles.statusMessage
-          }
-        >
-          {statusMessage}
-        </p>
-      </section>
-
-      <section
-        style={
-          styles.controls
-        }
-        aria-label="What's This Photo controls"
-      >
-        {answer && (
           <div
-            style={
-              styles.answerCard
-            }
-            aria-live="off"
-          >
-            {transcript && (
-              <p
-                style={
-                  styles.questionText
-                }
-              >
-                {transcript}
-              </p>
-            )}
+            style={{
+              ...styles.statusCircle,
 
-            <p
+              ...(listening
+                ? styles.listeningCircle
+                : {}),
+
+              ...(thinking
+                ? styles.thinkingCircle
+                : {}),
+            }}
+          >
+            {listening
+              ? "●"
+              : thinking
+              ? "•••"
+              : "✓"}
+          </div>
+
+          <h2
+            style={
+              styles.statusTitle
+            }
+          >
+            {statusTitle}
+          </h2>
+
+          <p
+            style={
+              styles.statusMessage
+            }
+          >
+            {statusMessage}
+          </p>
+        </section>
+
+        <section
+          style={
+            styles.controls
+          }
+          aria-label="What's This Photo controls"
+        >
+          <p
+            id="ask-button-help"
+            style={
+              styles.srOnly
+            }
+          >
+            Hold the ask button
+            while speaking and
+            release when finished.
+            Activate it without
+            speaking for an automatic
+            description. You can also
+            hold Space to ask.
+          </p>
+
+          {answer && (
+            <div
               style={
-                styles.answerText
+                styles.answerCard
               }
             >
-              {answer}
-            </p>
-          </div>
-        )}
+              {transcript && (
+                <p
+                  style={
+                    styles.questionText
+                  }
+                >
+                  {transcript}
+                </p>
+              )}
 
-        {speechSupported ? (
+              <p
+                style={
+                  styles.answerText
+                }
+              >
+                {answer}
+              </p>
+            </div>
+          )}
+
           <button
             type="button"
             disabled={
               thinking ||
               !cameraReady
             }
+            aria-describedby="ask-button-help"
+            aria-label={
+              listening
+                ? "Listening. Release to submit your question."
+                : speechSupported
+                ? "Ask. Hold while speaking, or activate without speaking for a description."
+                : "Describe what the camera sees."
+            }
             style={{
-              ...styles.askButton,
+              ...styles.primaryButton,
 
               ...(listening
-                ? styles.askButtonListening
+                ? styles.primaryButtonListening
                 : {}),
 
               ...((thinking ||
@@ -1773,299 +2383,231 @@ export default function Home() {
                 ? styles.disabled
                 : {}),
             }}
-            aria-label={
-              listening
-                ? "Listening. Release to send your question."
-                : "Hold this button while asking a question."
+            onPointerDown={
+              handlePrimaryPointerDown
             }
-            onPointerDown={(
-              event
-            ) => {
-              event.preventDefault();
-
-              startListening();
-            }}
-            onPointerUp={(
-              event
-            ) => {
-              event.preventDefault();
-
-              stopListening();
-            }}
-            onPointerCancel={(
-              event
-            ) => {
-              event.preventDefault();
-
-              stopListening();
-            }}
+            onPointerUp={
+              handlePrimaryPointerUp
+            }
+            onPointerCancel={
+              handlePrimaryPointerCancel
+            }
+            onKeyDown={
+              handlePrimaryKeyDown
+            }
+            onKeyUp={
+              handlePrimaryKeyUp
+            }
+            onClick={
+              handlePrimaryClick
+            }
           >
             <span
               style={
-                styles.askIcon
+                styles.primaryIcon
               }
               aria-hidden="true"
             >
               {listening
                 ? "●"
-                : "🎙"}
+                : "◎"}
             </span>
 
             <span>
               <span
                 style={
-                  styles.askTitle
+                  styles.primaryTitle
                 }
               >
                 {listening
-                  ? "Release to Ask"
+                  ? "Release When Finished"
                   : thinking
                   ? "Looking..."
-                  : "Hold to Ask"}
+                  : speechSupported
+                  ? "Hold to Ask"
+                  : "Describe View"}
               </span>
 
               <span
                 style={
-                  styles.askHelp
+                  styles.primaryHelp
                 }
               >
                 {listening
-                  ? "I’m listening"
-                  : "Hold while speaking"}
+                  ? "Listening now"
+                  : speechSupported
+                  ? "Tap without speaking to describe"
+                  : "No speaking required"}
               </span>
             </span>
           </button>
-        ) : (
-          <form
-            style={
-              styles.manualForm
-            }
-            onSubmit={
-              handleManualSubmit
-            }
-          >
-            <label
-              htmlFor="question"
+
+          {!speechSupported && (
+            <form
               style={
-                styles.manualLabel
+                styles.manualForm
+              }
+              onSubmit={
+                handleManualSubmit
               }
             >
-              Ask what the camera sees
-            </label>
-
-            <div
-              style={
-                styles.manualRow
-              }
-            >
-              <input
-                id="question"
-                value={
-                  manualText
-                }
-                onChange={(
-                  event
-                ) =>
-                  setManualText(
-                    event.target.value
-                  )
-                }
-                placeholder="What is in front of me?"
+              <label
+                htmlFor="question"
                 style={
-                  styles.input
-                }
-              />
-
-              <button
-                type="submit"
-                style={
-                  styles.smallButton
+                  styles.manualLabel
                 }
               >
-                Ask
-              </button>
-            </div>
-          </form>
-        )}
+                Type a question
+              </label>
 
-        <button
-          type="button"
-          onClick={() =>
-            submitImageOnly(
-              false
-            )
-          }
-          disabled={
-            thinking ||
-            !cameraReady
-          }
-          style={{
-            ...styles.photoButton,
-
-            ...((thinking ||
-            !cameraReady)
-              ? styles.disabled
-              : {}),
-          }}
-          aria-label="Take a photo and automatically describe what the camera sees. No speaking required."
-        >
-          <span
-            style={
-              styles.photoIcon
-            }
-            aria-hidden="true"
-          >
-            ◎
-          </span>
-
-          <span>
-            <span
-              style={
-                styles.photoTitle
-              }
-            >
-              Take Photo
-            </span>
-
-            <span
-              style={
-                styles.photoHelp
-              }
-            >
-              No speaking required
-            </span>
-          </span>
-        </button>
-
-        <div
-          style={
-            styles.quickActions
-          }
-        >
-          <button
-            type="button"
-            onClick={
-              repeatAnswer
-            }
-            disabled={
-              !answer ||
-              thinking
-            }
-            style={{
-              ...styles.secondaryButton,
-
-              ...((!answer ||
-              thinking)
-                ? styles.disabled
-                : {}),
-            }}
-            aria-label="Repeat the last answer"
-          >
-            <span
-              style={
-                styles.secondaryIcon
-              }
-              aria-hidden="true"
-            >
-              ↻
-            </span>
-
-            <span>
-              <strong
+              <div
                 style={
-                  styles.secondaryTitle
+                  styles.manualRow
                 }
               >
-                Repeat
-              </strong>
+                <input
+                  id="question"
+                  value={
+                    manualText
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setManualText(
+                      event.target
+                        .value
+                    )
+                  }
+                  placeholder="Where is the chair?"
+                  style={
+                    styles.input
+                  }
+                />
 
+                <button
+                  type="submit"
+                  style={
+                    styles.smallButton
+                  }
+                >
+                  Ask
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div
+            style={
+              styles.quickActions
+            }
+          >
+            <button
+              type="button"
+              onClick={
+                repeatAnswer
+              }
+              disabled={
+                !answer ||
+                thinking
+              }
+              style={{
+                ...styles.secondaryButton,
+
+                ...((!answer ||
+                thinking)
+                  ? styles.disabled
+                  : {}),
+              }}
+              aria-label="Repeat the last answer"
+            >
               <span
                 style={
-                  styles.secondaryHelp
+                  styles.secondaryIcon
                 }
+                aria-hidden="true"
               >
-                Say “repeat”
+                ↻
               </span>
-            </span>
-          </button>
 
-          <button
-            type="button"
-            onClick={
-              playInstructions
-            }
-            style={
-              styles.secondaryButton
-            }
-            aria-label="Hear instructions"
-          >
-            <span
-              style={
-                styles.secondaryIcon
+              <span>
+                <strong
+                  style={
+                    styles.secondaryTitle
+                  }
+                >
+                  Repeat
+                </strong>
+
+                <span
+                  style={
+                    styles.secondaryHelp
+                  }
+                >
+                  Say “repeat”
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                playInstructions
               }
-              aria-hidden="true"
+              style={
+                styles.secondaryButton
+              }
+              aria-label="Hear full instructions"
             >
-              ?
-            </span>
-
-            <span>
-              <strong
-                style={
-                  styles.secondaryTitle
-                }
-              >
-                Instructions
-              </strong>
-
               <span
                 style={
-                  styles.secondaryHelp
+                  styles.secondaryIcon
                 }
+                aria-hidden="true"
               >
-                Say “repeat instructions”
+                ?
               </span>
-            </span>
-          </button>
-        </div>
 
-        <button
-          type="button"
-          onClick={
-            describeScene
-          }
-          disabled={
-            thinking ||
-            !cameraReady
-          }
-          style={{
-            ...styles.sceneButton,
+              <span>
+                <strong
+                  style={
+                    styles.secondaryTitle
+                  }
+                >
+                  Instructions
+                </strong>
 
-            ...((thinking ||
-            !cameraReady)
-              ? styles.disabled
-              : {}),
-          }}
-          aria-label="Describe the current scene"
-        >
-          Describe Scene
-          <span
+                <span
+                  style={
+                    styles.secondaryHelp
+                  }
+                >
+                  Say “instructions”
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <p
             style={
-              styles.sceneHelp
+              styles.voiceHint
             }
           >
-            Say “describe scene”
-          </span>
-        </button>
+            “describe scene” •
+            “repeat” •
+            “instructions”
+          </p>
 
-        <p
-          style={
-            styles.keyboardHint
-          }
-        >
-          Keyboard: hold Space to ask
-        </p>
-      </section>
-    </main>
+          <p
+            style={
+              styles.keyboardHint
+            }
+          >
+            Space: hold to ask •
+            tap to describe
+          </p>
+        </section>
+      </main>
+    </>
   );
 }
 
@@ -2123,7 +2665,7 @@ const styles = {
     inset: 0,
 
     background:
-      "linear-gradient(to bottom, rgba(0,0,0,.90) 0%, rgba(0,0,0,.22) 34%, rgba(0,0,0,.42) 54%, rgba(0,0,0,.99) 100%)",
+      "linear-gradient(to bottom, rgba(0,0,0,.9) 0%, rgba(0,0,0,.24) 36%, rgba(0,0,0,.46) 56%, rgba(0,0,0,.99) 100%)",
 
     pointerEvents:
       "none",
@@ -2139,20 +2681,8 @@ const styles = {
     left: 0,
     right: 0,
 
-    display:
-      "flex",
-
-    justifyContent:
-      "space-between",
-
-    alignItems:
-      "flex-start",
-
-    gap:
-      "12px",
-
     padding:
-      "max(22px, env(safe-area-inset-top)) 18px 16px",
+      "max(23px, env(safe-area-inset-top)) 19px 18px",
 
     pointerEvents:
       "none",
@@ -2171,13 +2701,13 @@ const styles = {
       900,
 
     lineHeight:
-      0.98,
+      1,
 
     letterSpacing:
-      "-1.3px",
+      "-1.4px",
 
     textShadow:
-      "0 3px 18px rgba(0,0,0,.75)",
+      "0 3px 20px rgba(0,0,0,.75)",
   },
 
   tagline: {
@@ -2190,42 +2720,11 @@ const styles = {
     fontSize:
       "15px",
 
-    lineHeight:
-      1.25,
-
     fontWeight:
       700,
 
     textShadow:
-      "0 2px 12px rgba(0,0,0,.9)",
-  },
-
-  readyBadge: {
-    flexShrink: 0,
-
-    padding:
-      "8px 12px",
-
-    border:
-      "2px solid #fff",
-
-    borderRadius:
-      "999px",
-
-    backgroundColor:
-      "rgba(0,0,0,.78)",
-
-    color:
-      "#fff",
-
-    fontSize:
-      "10px",
-
-    fontWeight:
-      900,
-
-    letterSpacing:
-      "1.2px",
+      "0 2px 14px rgba(0,0,0,.9)",
   },
 
   centerStatus: {
@@ -2335,7 +2834,7 @@ const styles = {
 
   statusMessage: {
     maxWidth:
-      "360px",
+      "370px",
 
     margin:
       "8px 0 0",
@@ -2376,10 +2875,10 @@ const styles = {
       "center",
 
     gap:
-      "8px",
+      "9px",
 
     padding:
-      "14px 14px max(16px, env(safe-area-inset-bottom))",
+      "14px 14px max(17px, env(safe-area-inset-bottom))",
   },
 
   answerCard: {
@@ -2413,7 +2912,7 @@ const styles = {
       "0 0 7px",
 
     color:
-      "rgba(255,255,255,.78)",
+      "rgba(255,255,255,.8)",
 
     fontSize:
       "14px",
@@ -2441,7 +2940,7 @@ const styles = {
       1.28,
   },
 
-  askButton: {
+  primaryButton: {
     width:
       "100%",
 
@@ -2449,7 +2948,7 @@ const styles = {
       "580px",
 
     minHeight:
-      "102px",
+      "116px",
 
     display:
       "flex",
@@ -2461,19 +2960,19 @@ const styles = {
       "center",
 
     gap:
-      "17px",
-
-    padding:
-      "15px 22px",
+      "18px",
 
     boxSizing:
       "border-box",
 
+    padding:
+      "17px 22px",
+
     border:
-      "4px solid #fff",
+      "5px solid #fff",
 
     borderRadius:
-      "26px",
+      "28px",
 
     backgroundColor:
       "#fff",
@@ -2494,10 +2993,10 @@ const styles = {
       "none",
 
     boxShadow:
-      "0 15px 40px rgba(0,0,0,.55)",
+      "0 16px 42px rgba(0,0,0,.58)",
   },
 
-  askButtonListening: {
+  primaryButtonListening: {
     backgroundColor:
       "#111",
 
@@ -2508,12 +3007,12 @@ const styles = {
       "scale(.985)",
   },
 
-  askIcon: {
+  primaryIcon: {
     width:
-      "54px",
+      "58px",
 
     height:
-      "54px",
+      "58px",
 
     flexShrink: 0,
 
@@ -2536,15 +3035,15 @@ const styles = {
       "#fff",
 
     fontSize:
-      "25px",
+      "27px",
   },
 
-  askTitle: {
+  primaryTitle: {
     display:
       "block",
 
     fontSize:
-      "24px",
+      "25px",
 
     fontWeight:
       900,
@@ -2556,7 +3055,7 @@ const styles = {
       "left",
   },
 
-  askHelp: {
+  primaryHelp: {
     display:
       "block",
 
@@ -2570,95 +3069,10 @@ const styles = {
       700,
 
     opacity:
-      0.7,
+      0.72,
 
     textAlign:
       "left",
-  },
-
-  photoButton: {
-    width:
-      "100%",
-
-    maxWidth:
-      "580px",
-
-    minHeight:
-      "70px",
-
-    display:
-      "flex",
-
-    alignItems:
-      "center",
-
-    justifyContent:
-      "center",
-
-    gap:
-      "13px",
-
-    boxSizing:
-      "border-box",
-
-    padding:
-      "11px 18px",
-
-    border:
-      "3px solid #fff",
-
-    borderRadius:
-      "20px",
-
-    backgroundColor:
-      "rgba(0,0,0,.92)",
-
-    color:
-      "#fff",
-
-    cursor:
-      "pointer",
-
-    textAlign:
-      "left",
-
-    boxShadow:
-      "0 8px 24px rgba(0,0,0,.35)",
-  },
-
-  photoIcon: {
-    flexShrink: 0,
-
-    fontSize:
-      "26px",
-  },
-
-  photoTitle: {
-    display:
-      "block",
-
-    fontSize:
-      "19px",
-
-    fontWeight:
-      900,
-  },
-
-  photoHelp: {
-    display:
-      "block",
-
-    marginTop:
-      "2px",
-
-    color:
-      "rgba(255,255,255,.78)",
-
-    fontSize:
-      "12px",
-
-    fontWeight:
-      700,
   },
 
   quickActions: {
@@ -2675,12 +3089,12 @@ const styles = {
       "repeat(2, minmax(0, 1fr))",
 
     gap:
-      "8px",
+      "9px",
   },
 
   secondaryButton: {
     minHeight:
-      "64px",
+      "68px",
 
     display:
       "flex",
@@ -2695,16 +3109,16 @@ const styles = {
       "10px",
 
     padding:
-      "9px 12px",
+      "10px 13px",
 
     border:
-      "2px solid rgba(255,255,255,.8)",
+      "2px solid rgba(255,255,255,.85)",
 
     borderRadius:
       "17px",
 
     backgroundColor:
-      "rgba(0,0,0,.9)",
+      "rgba(0,0,0,.92)",
 
     color:
       "#fff",
@@ -2720,13 +3134,13 @@ const styles = {
     flexShrink: 0,
 
     width:
-      "26px",
+      "27px",
 
     textAlign:
       "center",
 
     fontSize:
-      "21px",
+      "22px",
 
     fontWeight:
       900,
@@ -2751,7 +3165,7 @@ const styles = {
       "3px",
 
     color:
-      "rgba(255,255,255,.75)",
+      "rgba(255,255,255,.76)",
 
     fontSize:
       "10px",
@@ -2763,59 +3177,21 @@ const styles = {
       1.2,
   },
 
-  sceneButton: {
-    width:
-      "100%",
-
-    maxWidth:
-      "580px",
-
-    minHeight:
-      "48px",
-
-    display:
-      "flex",
-
-    alignItems:
-      "center",
-
-    justifyContent:
-      "center",
-
-    gap:
-      "8px",
-
-    border:
-      "2px solid rgba(255,255,255,.62)",
-
-    borderRadius:
-      "16px",
-
-    backgroundColor:
-      "rgba(0,0,0,.86)",
+  voiceHint: {
+    margin:
+      "2px 0 0",
 
     color:
-      "#fff",
+      "rgba(255,255,255,.8)",
 
     fontSize:
-      "14px",
-
-    fontWeight:
-      850,
-
-    cursor:
-      "pointer",
-  },
-
-  sceneHelp: {
-    color:
-      "rgba(255,255,255,.7)",
-
-    fontSize:
-      "10px",
+      "11px",
 
     fontWeight:
       700,
+
+    textAlign:
+      "center",
   },
 
   keyboardHint: {
@@ -2937,5 +3313,32 @@ const styles = {
 
     cursor:
       "pointer",
+  },
+
+  srOnly: {
+    position:
+      "absolute",
+
+    width:
+      "1px",
+
+    height:
+      "1px",
+
+    padding: 0,
+
+    margin:
+      "-1px",
+
+    overflow:
+      "hidden",
+
+    clip:
+      "rect(0, 0, 0, 0)",
+
+    whiteSpace:
+      "nowrap",
+
+    border: 0,
   },
 };
